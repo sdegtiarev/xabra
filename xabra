@@ -1,0 +1,109 @@
+#!/usr/bin/env perl
+use LWP::UserAgent;
+use HTML::TokeParser;
+use DateTime;
+use DateTime::TimeZone;
+
+my $date=DateTime->now->set_time_zone('Europe/Moscow');
+
+
+while($ARGV[0]=~/^-/) {
+	my $opt=shift;
+	last if($opt eq '--');
+	
+	if($opt=~s/^-r//) { $raw_page=1; push(@ARGV, '-'.$opt) if($opt ne ""); }
+	
+	else { die "$opt: invalid option"; }
+}
+binmode(STDOUT, ":utf8");
+
+
+my $agent=new LWP::UserAgent;
+$agent->agent("habra/1.0");
+
+
+for(my $n=1; my $page=get_page("http://habrahabr.ru/posts/top/page".$n); $n++) {
+	my $stream=HTML::TokeParser->new(\$page) or die "parser: $!";
+
+	while(my $t=to_post($stream)) {
+		my $id=$t->[1]->{id};
+		my @stat=post_stat($stream);
+		my $post_date=shift @stat;
+		my $at=$date;
+		$post_date=~s/.* //;
+		if($1 eq "вчера в") { $at->set_day($date->day-1); }
+		my ($hr, $mn)=split /:/, $post_date;
+		$at->set_hour($hr);
+		$at->set_minute($mn);
+		$at->set_second(0);
+#		my $now=$date;
+		
+
+		local (*FILE);
+		open(FILE, ">> $id") or die "$id: $!";
+		if(-z FILE) { print FILE "date: $at\n"; }
+#		print FILE "$now @stat\n";
+		print FILE "@stat\n";
+		close(FILE);
+	}
+}
+
+
+
+
+sub get_page
+{
+	my $req=HTTP::Request->new(GET => shift);
+	my $rsp=$agent->request($req);
+
+	return $rsp->decoded_content() if($rsp->is_success);
+	undef;
+}
+
+
+
+
+sub to_post
+{
+	my $stream=shift;
+	my $t=$stream->get_tag("div");
+	while(not $t->[1]->{class}=~/^post\s.*shortcuts_item$/) {
+		last if(not $t);
+		$t=$stream->get_tag("div");
+		last if(not $t);
+	}
+	return $t;
+}
+
+
+
+
+
+sub post_stat
+{
+	my $stream=shift;
+	my $ident=0;
+	my @stat=();
+	while(my @t=@{$stream->get_tag("div","/div")}) {
+		if($t[0] eq "/div") {
+			last if($ident == 0);
+			$ident--;
+		} elsif($t[0] eq "div") {
+			$ident++;
+			if($t[1]->{class} eq "pageviews") {
+				push @stat, $stream->get_text();
+			} elsif($t[1]->{class} eq "favs_count") {
+				push @stat, $stream->get_text();
+			} elsif($t[1]->{class} eq "comments") {
+				my $cnt=$stream->get_text("/span");
+				$cnt=~s/^[^0-9]*//; $cnt=0 if($cnt eq "");
+				push @stat, $cnt;
+			} elsif($t[1]->{class} eq "published") {
+				push @stat, $stream->get_text();
+			}
+		}
+	}
+	@stat;
+}
+	
+
