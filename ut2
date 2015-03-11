@@ -1,0 +1,13 @@
+#!/usr/bin/env perl
+# DateTime ctor UT
+use DateTime;
+use DateTime::Format::ISO8601;
+
+
+foreach(@ARGV) {
+	my $t=DateTime::Format::ISO8601->parse_datetime($_);
+	print "$t\n";
+}
+
+
+

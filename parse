@@ -1,0 +1,10 @@
+#!/usr/bin/env perl
+
+while(<>) {
+	my ($t, $post, $origin, $view, $comm, $star)=split /\s+/;
+	
+	if(defined $m{$post}) {
+		print "$t ",$view-$m{$post},"\n";
+	}
+	$m{$post}=$view;
+}
