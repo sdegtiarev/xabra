@@ -3,41 +3,57 @@ use LWP::UserAgent;
 use HTML::TokeParser;
 use DateTime;
 use DateTime::TimeZone;
+use DateTime::Format::Natural;
+use Date::Language;
 use utf8;
 
-my $path='.';
+my $parser=new DateTime::Format::Natural;
+my $url="http://habrahabr.ru/posts/top/page";
 
 while($ARGV[0]=~/^-/) {
 	my $opt=shift;
 	last if($opt eq '--');
 	
-	if($opt=~s/^-r//) { $raw_page=1; push(@ARGV, '-'.$opt) if($opt ne ""); }
-	elsif($opt=~s/^-p//) { $path= ($opt eq "")? shift : $opt; }
+	if($opt=~s/^-r//) { $rep= ($opt eq "")? shift : $opt; }
+	elsif($opt=~s/^-w//) { $url="http://habrahabr.ru/posts/top/weekly/page"; unshift(@ARGV, '-'.$opt) if($opt ne ""); }
+	elsif($opt=~s/^-m//) { $url="http://habrahabr.ru/posts/top/monthly/page"; unshift(@ARGV, '-'.$opt) if($opt ne ""); }
 
 	elsif($opt=~s/^-h//) { usage(); exit(0); }
 	else { usage(); die "$opt: invalid option"; }
 }
 binmode(STDOUT, ":utf8");
 binmode(STDERR, ":utf8");
-
+select STDERR; $|=1;
+select STDOUT; $|=1;
 
 my $agent=new LWP::UserAgent;
 $agent->agent("habra/1.0");
 
-
-for(my $n=1; my $page=get_page("http://habrahabr.ru/posts/top/page".$n); $n++) {
-	my $stream=HTML::TokeParser->new(\$page) or die "parser: $!";
-
-	while(my $t=to_post($stream)) {
-		my $id=$t->[1]->{id};
-		my ($post_date,@stat)=post_stat($stream);
-		my ($at, $since)=post_date($post_date);
-
-#		print "$id.$at		", $since,"    @stat\n";
-		save_stat("$id.$at", $since, @stat);
-	}
+xabrastat($url);
+while($rep) {
+	sleep($rep);
+	xabrastat($url);
 }
 
+
+
+sub xabrastat
+{
+	my $url=shift;
+	for(my $n=1; my $page=get_page($url.$n); $n++) {
+		my $stream=HTML::TokeParser->new(\$page) or die "parser: $!";
+		my $time=DateTime->now('time_zone' => 'Europe/Moscow')->epoch();
+
+
+		while(my $t=to_post($stream)) {
+			my $id=$t->[1]->{id};
+			my ($post_date,@stat)=post_stat($stream);
+			my ($at, $since)=post_date($post_date);
+
+			printf "%-10d  %-12s  %20s    %-8d  %-6d  %-6d\n", $time, $id, $at, @stat;
+		}
+	}
+}
 
 
 
@@ -100,22 +116,40 @@ sub post_stat
 sub post_date
 {
 	my $post_date=shift;
-	my $at=DateTime->now->set_time_zone('Europe/Moscow');
-	my $now=DateTime->now->set_time_zone('Europe/Moscow');
-	$post_date=~s/(.*) //;
+	my $now=DateTime->now('time_zone' => 'Europe/Moscow');
+$post_date=~s/^\s+//;
+	$post_date=~s/янв.*в /Jan at /;
+	$post_date=~s/фев.*в /Feb at /;
+	$post_date=~s/мар.*в /Mar at /;
+	$post_date=~s/апр.*в /Apr at /;
+	$post_date=~s/мая.*в /May at /;
+	$post_date=~s/июн.*в /Jun at /;
+	$post_date=~s/июл.*в /Jul at /;
+	$post_date=~s/авг.*в /Aug at /;
+	$post_date=~s/сен.*в /Sep at /;
+	$post_date=~s/окт.*в /Oct at /;
+	$post_date=~s/ноя.*в /Nov at /;
+	$post_date=~s/дек.*в /Dec at /;
+	$post_date=~s/вчера в /yesterday at /;
+	$post_date=~s/сегодня в /today at /;
+#print "$post_date\n";
 
-	if($1 eq "вчера в") {
-		$at->set_day($now->day-1);
-	} elsif($1 eq "сегодня в") {
-	} else {
-			die "$1 $post_date: bad date format";
-	}
-	my ($hr, $mn)=split /:/, $post_date;
-	$at->set_hour($hr);
-	$at->set_minute($mn);
-	$at->set_second(0);
+	my $str=$parser->extract_datetime($post_date);
+	my $dt=$parser->parse_datetime($str);
+	$dt->set_time_zone('Europe/Moscow');
+	my $e1=$now->epoch(), $e2=$dt->epoch();
+	my $off=$e1-$e2;
+	if($off < 0) {
 	
-	($at, $now->epoch-$at->epoch());
+		print STDERR "parsed: $str\n";
+		print STDERR "negative offset $off\n";
+		print STDERR "    $now => ", $e1, " => ", off2time($e1), "\n";
+		print STDERR  "    $dt => ", $e2, " => ", off2time($e2), "\n";
+		exit(1);
+		
+		
+	}
+	($dt, $off);
 }
 
 
@@ -132,10 +166,11 @@ sub save_stat
 
 sub usage
 {
-	print "Synopsis: xabra [-p <path>] [-r] [-h]\n";
+	print "Synopsis: xabra [-w|m] [-r <seconds>] [-h]\n";
 	print "Options:\n";
-	print "  -p <path>    : target path to save stat\n";
-	print "  -r           : dump raw page (not impl)\n";
+	print "  -r <seconds> : repeat forever, every <seconds>\n";
+	print "  -w           : do weekly top\n";
+	print "  -m           : do monthly top\n";
 	print "  -h           : print this help and quit\n";
 }
 
@@ -150,5 +185,13 @@ sub strdump
 }
 
 
+sub off2time
+{
+	my $h=shift; $h%=3600*24;
+	my $s=$h % 60; $h=int($h/60);
+	my $m=$h % 60; $h=int($h/60);
+	sprintf "%02d:%02d:%02d",$h,$m,$s;
+}
+	
 
 
