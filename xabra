@@ -161,11 +161,10 @@ sub save_stat
 
 sub usage
 {
-	print "Synopsis: xabra [-w|m] [-r <seconds>] [-h]\n";
+	print "Synopsis: xabra [-d <days>] [-r <seconds>] [-h]\n";
 	print "Options:\n";
 	print "  -r <seconds> : repeat forever, every <seconds>\n";
-	print "  -w           : do weekly top\n";
-	print "  -m           : do monthly top\n";
+	print "  -d <days>    : look up posts for last <days>\n";
 	print "  -h           : print this help and quit\n";
 }
 
