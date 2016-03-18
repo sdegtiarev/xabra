@@ -2,6 +2,8 @@ import std.stdio;
 import std.array;
 import std.container;
 import std.conv;
+import std.range;
+import std.algorithm;
 import std.datetime;
 import core.stdc.time;
 
@@ -10,6 +12,7 @@ struct Post
 {
 	string name_;
 	string posted_;
+	static immutable auto epoch=DateTime(1970, 1, 1);
 
 	struct Stat
 	{
@@ -19,6 +22,10 @@ struct Post
 	}
 	Stat first_, last_;
 	RedBlackTree!(Stat, "a.ts < b.ts", false) hist_;
+
+	@property auto at() const { return DateTime.fromISOExtString(posted_); }
+	@property auto begin() const { return epoch+dur!"seconds"(first_.ts); }
+	@property auto end() const { return epoch+dur!"seconds"(last_.ts); }
 
 	this(string name, string at, Post.Stat stat)
 	{
@@ -68,6 +75,9 @@ void main(string[] arg)
 			data[name]=Post(name, at, Post.Stat(ts, v,m,c));
 	}
 
-	foreach(post; data.byValue)
-		writeln(post);
+	//foreach(post; data.byValue)
+	//	writeln(post);
+
+	auto post=data.byValue.takeOne[0];
+	writeln(post.name_,": ", post.at, " -- ", post.begin, " -- ", post.end);
 }
