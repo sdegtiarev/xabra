@@ -27,7 +27,7 @@ select STDERR; $|=1;
 select STDOUT; $|=1;
 
 my $agent=new LWP::UserAgent;
-$agent->agent("xabra/1.0");
+#$agent->agent("xabra/1.0");
 
 while(xabrastat($url) and $rep) { sleep($rep); }
 

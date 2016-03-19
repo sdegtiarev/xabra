@@ -5,18 +5,18 @@ import std.conv;
 import std.range;
 import std.algorithm;
 import std.datetime;
-import core.stdc.time;
-
+//import core.stdc.time;
+import std.getopt;
 
 struct Post
 {
 	string name_;
 	string posted_;
-	static immutable auto epoch=DateTime(1970, 1, 1);
+	static immutable auto epoch=DateTime(1970, 1, 1)+dur!"hours"(3);
 
 	struct Stat
 	{
-		time_t ts;
+		ulong ts;
 		uint view, mark, comm;
 		float dv, dm, dc;
 	}
@@ -33,7 +33,7 @@ struct Post
 		this.name_=name;
 		this.posted_=at;
 		first_=last_=stat;
-		hist_.insert(stat);
+		//hist_.insert(stat);
 	}
 
 	void add(Post.Stat stat)
@@ -57,11 +57,17 @@ struct Post
 void main(string[] arg)
 {
 	Post[string] data;
+	int id=0;
+	bool list=0;
+	getopt(arg,
+		  "p|post", &id
+		, "l|list", &list
+	);
 
 	auto fd=File(arg[1], "r");
 	foreach(line; fd.byLine) {
 		auto t=line.split;
-		auto ts=to!time_t(t[0]);
+		auto ts=to!ulong(t[0]);
 		string name=t[1].idup;
 		string at=t[2].idup;
 		auto v=to!uint(t[3]);
@@ -75,9 +81,20 @@ void main(string[] arg)
 			data[name]=Post(name, at, Post.Stat(ts, v,m,c));
 	}
 
-	//foreach(post; data.byValue)
-	//	writeln(post);
+	// list posts
+	if(list) foreach(post; data.byValue)
+		writeln(post.hist_.length," ",post.name_," ",post.at);
 
-	auto post=data.byValue.takeOne[0];
-	writeln(post.name_,": ", post.at, " -- ", post.begin, " -- ", post.end);
+	//// list post start/end times
+	//foreach(post; data.byValue)
+	//	writeln(post.name_,": ", post.at, " -- ", post.begin, " -- ", post.end);
+
+	if(id) {
+		auto post=data["post_"~to!string(id)];
+		writeln(post);
+		foreach(stat; post.hist_) {
+			ulong t=(Post.epoch+dur!"seconds"(stat.ts)-post.at).total!"seconds";
+			writeln(t," ",stat.dv);
+		}
+	}
 }
