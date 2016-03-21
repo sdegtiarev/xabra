@@ -5,7 +5,7 @@ import std.conv;
 import std.range;
 import std.algorithm;
 import std.datetime;
-//import core.stdc.time;
+import std.traits;
 import std.getopt;
 
 struct Post
@@ -58,10 +58,11 @@ void main(string[] arg)
 {
 	Post[string] data;
 	int id=0;
-	bool list=0;
+	bool list=0, total=0;
 	getopt(arg,
 		  "p|post", &id
 		, "l|list", &list
+		, "t|total", &total
 	);
 
 	auto fd=File(arg[1], "r");
@@ -97,4 +98,56 @@ void main(string[] arg)
 			writeln(t," ",stat.dv);
 		}
 	}
+
+	if(total) {
+		float[ulong] sum;
+		foreach(post; data) {
+			foreach(stat; post.hist_) {
+				if(stat.ts in sum)
+					sum[stat.ts]+=stat.dv;
+				else
+					sum[stat.ts]=stat.dv;
+			}
+		}
+		auto rng=sum.keys.sort;
+		writeln(typeid(rng));
+		foreach(ts; sum.keys.sort)
+			writeln(ts," ",sum[ts]);
+	}
 }
+
+auto smoothAvg(R)(R r)
+if(isInputRange!(Unqual!R))
+{
+	return SmoothAvg!R(r);
+}
+
+struct SmoothAvg(R)
+{
+	alias T=ElementType!(Unqual!R);
+	this(R r) {
+		data_=r;
+		i_=0;
+	}
+
+	@property bool empty() const {
+		return i_ >= data_.length;
+	}
+	T front() {
+		if(i_ < 2 || i_ > data_.length-3) {
+			return data_[i_];
+		}
+		T s=0;
+		foreach(v; data_[i_-2..i_+3]) s+=v;
+		return s/5;
+	}
+	void popFront() {
+		++i_;
+	}
+
+	R data_;
+	size_t i_;
+}
+
+
+
