@@ -4,85 +4,22 @@ import std.array;
 import std.regex;
 import std.exception;
 import std.conv;
+import std.typecons;
 import std.ascii;
+import std.datetime;
 
 void main(string[] arg)
 {
-	immutable int[string] ignore=[
-		  "nav_panel" : 1
-		, "menu" : 1
-		, "line" : 1
-		, "bmenu" : 1
-		, "bmenu_inner" : 1
-		, "layout_inner" : 1
-		, "container" : 1
-		, "hidden" : 1
-		, "nav_tabs_content " : 1
-		, "nav_tab hidden" : 1
-		, "title" : 1
-		, "inner" : 1
-		, "lain_13_what_are_you_doing" : 1
-		, "adb-text" : 1
-		, "adb-close" : 1
-		, "page_head" : 1
-		, "column-wrapper" : 1
-		, "content_left js-content_left" : 1
-		, "tabs" : 1
-		, "posts_list" : 1
-		, "posts shortcuts_items" : 1
-		, "hubs" : 1
-		, "content html_format" : 1
-		, "buttons" : 1
-		, "clear" : 1
-		, "infopanel_wrapper js-user_" : 1
-		, "voting-wjt voting-wjt_infopanel js-voting  " : 1
-		, "voting-wjt__counter js-mark" : 1
-		, "post translation shortcuts_item" : 1
-		, "shortcuts_item" : 1
-		, "privet" : 1
-		, "html_banner" : 1
-		, "page-nav" : 1
-		, "description" : 1
-		, "sidebar_right js-sidebar_right" : 1
-		, "no_please_one_one_one" : 1
-		, "block hubs_categories" : 1
-		, "live-broadcast live-broadcast_habrahabr daily_best_posts" : 1
-		, "live-broadcast__tabs tabs" : 1
-		, "tabs__content" : 1
-		, "block new_companies" : 1
-		, "companies_items" : 1
-		, "company_item " : 1
-		, "favicon" : 1
-		, "all" : 1
-		, "column-wrapper column-wrapper_bottom column-wrapper_bordered" : 1
-		, "content_left" : 1
- 		, "live-broadcast live-broadcast_feed" : 1
-		, "dropdown dropdown_broadcast" : 1
-		, "dropdown-container" : 1
-		, "live-broadcast__content" : 1
-		, "columns-group columns-group_promo" : 1
-		, "columns-group__column promo-block promo-block_vacancies" : 1
-		, "promo-block__content" : 1
-		, "vacancy__attrs attrs" : 1
-		, "promo-block__footer" : 1
-		, "columns-group__column promo-block promo-block_freelansim-tasks" : 1
-		, "task__attrs attrs" : 1
-		, "sidebar_right" : 1
-		, "float_yandex_ad" : 1
-		, "footer_panel" : 1
-		, "copyright" : 1
-		, "about" : 1
-		, "social_accounts" : 1
-		, "" : 1
-		, "" : 1
-		, "" : 1
-	];
 	string page=(arg.length > 1)? load(arg[1]) : load(1);
-
+	auto div=dive(page, 0);
+	writeln(div.opt);
+	writeln(" => ",div.chld.length," subsections");
+	return;
+/*
 	foreach(div; matchAll(page, regex(r"<div\s+(.*?)>","s"))) {
 		auto cl=matchFirst(div[1], regex(`class="(.*?)"`));
 		if(matchFirst(cl[1], regex(r"^post.*shortcuts_item$"))) {
-			auto id=matchFirst(div[1], regex(`id="(.*?)"`));
+			auto id=matchFirst(div[1], regex(`id="post_(.*?)"`));
 			writeln(id[1]);
 		} else if(cl[1] == "published") {
 			auto end=matchFirst(div.post, regex(r"<div\s+|</div>","s"));
@@ -99,34 +36,98 @@ void main(string[] arg)
 				writeln("--  0 comments");
 			else
 				writeln("--  ",val[1], " comments");
-		} else if(cl[1] in ignore) {
 		} else {
-			writeln("# [", cl[1] ,"]");
-			auto end=matchFirst(div.post, regex(r"<div\s+|</div>","s"));
-			writeln(end.pre);
-		}
-	}
-
-
-/*
-	page=replaceFirst(page, ctRegex!(r".*?<div","s"), "<div");
-	int layer=0;
-	string block;
-	foreach(m; matchAll(page, div_block)) {
-		assert(m.lenght=4);
-		string all=m[0], begin=m[1], body=m[2], end=m[3];
-		if(begin == "<div")
-		{
-			if(layer == 0)
-			{
-				if(end == "</div")
-			}
-
+			//writeln("# [", cl[1] ,"]");
+			//auto end=matchFirst(div.post, regex(r"<div\s+|</div>","s"));
+			//writeln(end.pre);
 		}
 	}
 */
+
 }
 
+
+
+auto parse(string page)
+{
+	alias stat=Tuple!(uint, "post", DateTime, "at", uint, "v", uint, "m", uint, "c");
+	auto div_begin=ctRegex!(r"<div\s+(.*?)>", "s");
+	auto div_class=ctRegex!(`class="(.*?)"`);
+	auto div_post=ctRegex!(r"^post.*shortcuts_item$");
+
+	stat[] r;
+	foreach(div; matchAll(page, div_begin)) {
+		stat st;
+		auto _class=matchFirst(div[1], div_class);
+
+		if(matchFirst(_class[1], div_post)) {
+			auto id=matchFirst(div[1], regex(`id="post_(.*?)"`));
+			st.post=to!uint(id[1]);
+		}
+
+		if(st.post) r~=st;
+	}
+
+	return r;
+}
+
+
+
+struct Section
+{
+	string pre, opt, post;
+	Section[] chld;
+	bool div;
+}
+
+
+Section dive(string page, int level)
+{
+	enum div_start=r"<div\s+(.*?)>";
+	enum div_end="</div>";
+	auto divider=ctRegex!(div_start~"|"~div_end,"s");
+
+	auto div=matchFirst(page, divider);
+	if(div[0] == div_end) {
+writeln("END OF LEVEL ", level);
+		return Section(div.pre, "", "", [], false);
+	}
+writeln("AT LEVEL ", level);
+
+	Section[] chld;
+	Section nxt=dive(div.post, level+1);
+	while(nxt.div)
+		chld~=nxt;
+
+	return Section(div.pre, div[1], nxt.pre, chld, true);
+
+
+/*
+	string pre=d1.pre, opt=d1[1];
+	writeln(d1[0]);
+
+	int level=0;
+	char[] pad;
+	string[] stack;
+	foreach(d2; matchAll(d1.post, div_div)) {
+		if(d2[0] != "</div>") {
+			writeln(level,pad, d2[0]);
+			++level; pad~=" ";
+			stack~=d2[1];
+		}	
+		if(d2[0] == "</div>") {
+			--level;
+			if(!pad.empty) pad=pad[1..$];
+			if(!stack.empty()) {
+				writeln(level,pad, d2[0], stack[$-1]);
+				stack=stack[0..$-1];
+			} else
+				writeln(level,pad, d2[0], "###");
+		}
+	}
+	writeln;
+*/
+}
 
 
 
