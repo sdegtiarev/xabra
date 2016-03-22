@@ -11,42 +11,18 @@ import std.datetime;
 void main(string[] arg)
 {
 	string page=(arg.length > 1)? load(arg[1]) : load(1);
+
+	auto s=Section(page);
+
+/*
 	auto div=dive(page, 0);
 	writeln(div.opt);
 	writeln(" => ",div.chld.length," subsections");
 	return;
-/*
-	foreach(div; matchAll(page, regex(r"<div\s+(.*?)>","s"))) {
-		auto cl=matchFirst(div[1], regex(`class="(.*?)"`));
-		if(matchFirst(cl[1], regex(r"^post.*shortcuts_item$"))) {
-			auto id=matchFirst(div[1], regex(`id="post_(.*?)"`));
-			writeln(id[1]);
-		} else if(cl[1] == "published") {
-			auto end=matchFirst(div.post, regex(r"<div\s+|</div>","s"));
-			writeln("--  published ", end.pre);
-		} else if(cl[1] == "views-count_post") {
-			auto end=matchFirst(div.post, regex(r"<div\s+|</div>","s"));
-			writeln("--  ",end.pre, " views");
-		} else if(cl[1] == "favorite-wjt favorite") {
-			auto val=matchFirst(div.post, regex(`<span class=.*?>(.*?)</span>`,"s"));
-			writeln("--  ",val[1], " favorites");
-		} else if(cl[1] == "post-comments") {
-			auto val=matchFirst(div.post, regex(`<a .*?>\s*(.*?)\s*</a>`,"s"));
-			if(empty(val[1]) || !isDigit(val[1][0]))
-				writeln("--  0 comments");
-			else
-				writeln("--  ",val[1], " comments");
-		} else {
-			//writeln("# [", cl[1] ,"]");
-			//auto end=matchFirst(div.post, regex(r"<div\s+|</div>","s"));
-			//writeln(end.pre);
-		}
-	}
 */
-
 }
 
-
+/*
 
 auto parse(string page)
 {
@@ -102,7 +78,7 @@ writeln("AT LEVEL ", level);
 	return Section(div.pre, div[1], nxt.pre, chld, true);
 
 
-/*
+
 	string pre=d1.pre, opt=d1[1];
 	writeln(d1[0]);
 
@@ -126,8 +102,8 @@ writeln("AT LEVEL ", level);
 		}
 	}
 	writeln;
-*/
 }
+*/
 
 enum {
 	  begin=r"<div\s+"
@@ -140,9 +116,62 @@ struct Section
 {
 	string opt, text;
 	Section[] children;
+static string ident;
+
+	enum {
+		  begin=r"<div\s+"
+		, end=r"</div>"
+		, any=begin~"|"~end
+		, options=r"(.*?)>"
+	}
+
+	this(string page) {
+		auto r=matchFirst(page, begin);
+		enforce(r, "no section found");
+		parse(r.post);
+	}
+
+	@property string name() const {
+		auto r=matchFirst(opt, ctRegex!(`class="(.*?)"`,"s"));
+		return r? r[1] : "ANON";
+	}
+	@property string id() const {
+		auto r=matchFirst(opt, ctRegex!(`id="(.*?)"`,"s"));
+		return r? r[1] : "";
+	}
+
+	private string parse(string page) {
+		auto r=matchFirst(page, ctRegex!(options, "s"));
+		enforce(r, "section header not terminated");
+		opt=r[1];
+//writeln(ident,"# section [",opt,"]");
+writeln(ident, this.name,"(",this.id,")");
+writeln(ident, "{");
+	
+		page=r.post;
+		do {
+			r=matchFirst(page, ctRegex!(any, "s"));
+			enforce(r, begin~opt~"> : section not terminated");
+			text~=r.pre;
+			page=r.post;
+	
+			if(r[0] != end) {
+				ident~="  ";
+				Section ch;
+				page=ch.parse(page);
+				children~=ch;
+				ident=ident[2..$];
+			}
+
+		} while(r[0] != end);
+writeln(ident, "} //",this.name);
+//writeln(ident,"# finished [", opt,"]");
+
+		return page;
+	}
 }
 
-
+/*
 string ma(string page)
 {
 //writeln("--------------------------------------------");
@@ -183,7 +212,7 @@ void main(string[] arg)
 	writeln("leftover: ", page);
 }
 
-
+*/
 
 
 
