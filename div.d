@@ -8,13 +8,33 @@ import std.typecons;
 import std.ascii;
 import std.datetime;
 
+bool tree=false;
+
 void main(string[] arg)
 {
 	string page=(arg.length > 1)? load(arg[1]) : load(1);
 
 	auto s=Section(page);
 
-	writeln("---------------------------------------------");
+	if(tree) writeln("---------------------------------------------");
+	auto posts=s["inner"]["column-wrapper"]["content_left"]["posts_list"]["posts"];
+	if(posts.empty)
+		writeln("no posts");
+	else
+		foreach(p; posts.children)
+		if(p.name == "post") {
+			writeln(p.name,"(",p.id[5..$],")");
+			auto pb=p["published"];
+			writeln("    ",pb.name,": ",pb.text);
+			auto info=p["infopanel_wrapper"];
+			foreach(y; info.children) {
+				if(y.name == "views-count_post")
+					writeln("    views: ",y.text);
+				else
+					writeln("    ",y.name);
+			}
+		}
+/*
 	writeln(s.name);
 	foreach(c; s.children) {
 		if(c.name == "inner") {
@@ -23,19 +43,27 @@ void main(string[] arg)
 				if(t.name =="column-wrapper") {
 					writeln("    ",t.name);
 					foreach(u; t.children) {
-						if(u.name == "content_left js-content_left") {
+						//if(u.name == "content_left js-content_left") {
+						if(u.name == "content_left") {
 							writeln("      ",u.name);
 							foreach(v; u.children) {
 								if(v.name == "posts_list") {
 									writeln("        ", v.name);
 									foreach(w; v.children) {
-										if(w.name == "posts shortcuts_items") {
+										//if(w.name == "posts shortcuts_items") {
+										if(w.name == "posts") {
 											writeln("          ",w.name);
 											foreach(x; w.children) {
-												if(x.name =="post shortcuts_item") {
-													writeln("            ",x.name);
-													foreach(y; x.children)
-														writeln("              ",y.name);
+												//if(x.name =="post shortcuts_item") {
+												if(x.name =="post") {
+													writeln("            ",x.name,"(",x.id[5..$],")");
+													foreach(y; x.children) {
+														if(y.name == "published") {
+															writeln("              ",y.name,": ",y.text);
+														} else {
+															writeln("              ",y.name);
+														}
+													}
 												}
 											}
 										}
@@ -48,6 +76,7 @@ void main(string[] arg)
 			}
 		}
 	}
+*/
 }
 
 
@@ -71,8 +100,26 @@ static string ident;
 		parse(r.post);
 	}
 
-	@property string name() const {
+	Section opIndex(string target) {
+		if(this.empty)
+			return this;
+		foreach(c; children) {
+			if(c.name == target)
+				return c;
+		}
+		return Section();
+	}
+
+	@property bool empty() const {
+		return opt.empty && text.empty && children.empty;
+	}
+
+	@property string full_name() const {
 		auto r=matchFirst(opt, ctRegex!(`class="(.*?)"`,"s"));
+		return r? r[1] : "ANON";
+	}
+	@property string name() const {
+		auto r=matchFirst(opt, ctRegex!(`class="(.*?)["\s]`,"s"));
 		return r? r[1] : "ANON";
 	}
 	@property string id() const {
@@ -84,8 +131,8 @@ static string ident;
 		auto r=matchFirst(page, ctRegex!(options, "s"));
 		enforce(r, "section header not terminated");
 		opt=r[1];
-writeln(ident, this.name,"(",this.id,")");
-writeln(ident, "{");
+if(tree) writeln(ident, this.name,"(",this.id,")");
+if(tree) writeln(ident, "{");
 	
 		page=r.post;
 		do {
@@ -103,7 +150,7 @@ writeln(ident, "{");
 			}
 
 		} while(r[0] != end);
-writeln(ident, "} //",this.name);
+if(tree) writeln(ident, "} //",this.name);
 
 		return page;
 	}
