@@ -129,6 +129,62 @@ writeln("AT LEVEL ", level);
 */
 }
 
+enum {
+	  begin=r"<div\s+"
+	, end=r"</div>"
+	, any=begin~"|"~end
+	, options=r"(.*?)>"
+}
+
+struct Section
+{
+	string opt, text;
+	Section[] children;
+}
+
+
+string ma(string page)
+{
+//writeln("--------------------------------------------");
+static string ident;
+	Section self;
+	auto r=matchFirst(page, ctRegex!(options, "s"));
+	enforce(r, "section header not terminated");
+	self.opt=r[1];
+writeln(ident,"# section [",self.opt,"]");
+	
+	page=r.post;
+	do {
+		r=matchFirst(page, ctRegex!(any, "s"));
+		enforce(r, begin~self.opt~"> : section not terminated");
+		self.text~=r.pre;
+		page=r.post;
+		if(r[0] != end) {
+			ident~="  ";
+			page=ma(page);
+			ident=ident[2..$];
+		}
+
+	} while(r[0] != end);
+writeln(ident,"# finished [", self.opt,"]");
+
+	return page;
+}
+
+void main(string[] arg)
+{
+	enforce(arg.length > 1, "no file");
+	auto page=load(arg[1]);
+	auto r=matchFirst(page, begin);
+	enforce(r, "no section found");
+	page=r.post;
+
+	page=ma(page);
+	writeln("leftover: ", page);
+}
+
+
+
 
 
 
