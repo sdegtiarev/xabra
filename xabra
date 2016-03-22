@@ -8,7 +8,7 @@ use Date::Language;
 use utf8;
 
 my $parser=new DateTime::Format::Natural;
-my $url="http://habrahabr.ru/all/page";
+my $url="https://habrahabr.ru/all/page";
 my $depth=1;
 
 while($ARGV[0]=~/^-/) {
@@ -36,17 +36,17 @@ while(xabrastat($url) and $rep) { sleep($rep); }
 sub xabrastat
 {
 	my $url=shift;
-	my $time=DateTime->now('time_zone' => 'Europe/Moscow')->epoch();
+	my $time=DateTime->now('time_zone' => 'Europe/Moscow');
 	for(my $n=1; my $page=get_page($url.$n); $n++) {
 		my $stream=HTML::TokeParser->new(\$page) or die "parser: $!";
 
 		while(my $id=to_post($stream)) {
 			my ($post_date,@stat)=post_stat($stream);
-			my ($at, $since)=post_date($post_date);
-			return 1 if(not $since);
+			my $at=post_date($post_date);
+			return 1 if(not defined $at);
 			if($stat[0]=~s/k$// and $stat[0]=~s/,/./) { $stat[0]*=1000; }
 
-			printf "%-10d  %-12s  %20s    %-8d  %-6d  %-6d\n", $time, $id, $at, @stat;
+			printf "%s %-6u %s %-6d %-6d %-6d\n", $time, $id, $at, @stat;
 		}
 	}
 	return 1;
@@ -71,9 +71,11 @@ sub to_post
 	my $stream=shift;
 	while(my @t=@{$stream->get_tag("div")}) {
 		next if(not $t[1]->{class}=~/post .*shortcuts_item$/);
-#print "# $t[1]->{class} -> $t[1]->{id}\n";
-		return $t[1]->{id};
+		my $post=$t[1]->{id};
+		$post=~s/^post_//;
+		return $post;
 	}
+	undef;
 }
 
 
@@ -134,17 +136,14 @@ sub post_date
 	my $str=$parser->extract_datetime($post_date);
 	my $dt=$parser->parse_datetime($str);
 	$dt->set_time_zone('Europe/Moscow');
-	my $e1=$now->epoch(), $e2=$dt->epoch();
-	my $off=$e1-$e2;
-	if($off < 0) {
+	if(DateTime->compare($now,$dt) < 0) {
 		print STDERR "parsed: $str\n";
-		print STDERR "negative offset $off\n";
-		print STDERR "    $now => ", $e1, " => ", off2time($e1), "\n";
-		print STDERR  "    $dt => ", $e2, " => ", off2time($e2), "\n";
+		print STDERR "negative offset $now from $dt\n";
 		exit(1);
 	}
-	$off=0 if($off > $depth*24*60*60);
-	($dt, $off);
+	my $off=$now->epoch()-$dt->epoch();
+	undef $dt if(($now->epoch()-$dt->epoch()) > $depth*24*60*60);
+	$dt;
 }
 
 
