@@ -61,11 +61,12 @@ void main(string[] arg)
 {
 	Post[string] data;
 	int id=0;
-	bool list=0, total=0;
+	bool list=0, total=0, favorites=0;
 	getopt(arg,
 		  "p|post", &id
 		, "l|list", &list
 		, "t|total", &total
+		, "m|marks", &favorites
 	);
 
 	auto fd=File(arg[1], "r");
@@ -110,6 +111,20 @@ void main(string[] arg)
 					sum[stat.ts]+=stat.dv;
 				else
 					sum[stat.ts]=stat.dv;
+			}
+		}
+		DateTime[] ts=sum.keys.sort;
+		foreach(t; ts)
+			writeln((t-ts[0]).total!"seconds"," ",sum[t]);
+	}
+	if(favorites) {
+		float[DateTime] sum;
+		foreach(post; data) {
+			foreach(stat; post.hist_) {
+				if(stat.ts in sum)
+					sum[stat.ts]+=stat.dm;
+				else
+					sum[stat.ts]=stat.dm;
 			}
 		}
 		DateTime[] ts=sum.keys.sort;

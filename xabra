@@ -10,6 +10,7 @@ use utf8;
 my $parser=new DateTime::Format::Natural;
 my $url="https://habrahabr.ru/all/page";
 my $depth=1;
+my $method=get_page;
 
 while($ARGV[0]=~/^-/) {
 	my $opt=shift;
@@ -17,6 +18,7 @@ while($ARGV[0]=~/^-/) {
 	
 	if($opt=~s/^-r//) { $rep=($opt eq "")? shift : $opt; }
 	elsif($opt=~s/^-d//) { $depth=($opt eq "")? shift : $opt; }
+	elsif($opt=~s/^-w//) { $method=wget_page; unshift "-$opt" if($opt ne ""); }
 
 	elsif($opt=~s/^-h//) { usage(); exit(0); }
 	else { usage(); die "$opt: invalid option"; }
@@ -37,10 +39,11 @@ sub xabrastat
 {
 	my $url=shift;
 	my $time=DateTime->now('time_zone' => 'Europe/Moscow');
-	for(my $n=1; my $page=get_page($url.$n); $n++) {
+	for(my $n=1; my $page=$method->($url.$n); $n++) {
 		my $stream=HTML::TokeParser->new(\$page) or die "parser: $!";
 
 		while(my $id=to_post($stream)) {
+#print "post $id\n";
 			my ($post_date,@stat)=post_stat($stream);
 			my $at=post_date($post_date);
 			return 1 if(not defined $at);
@@ -58,12 +61,16 @@ sub get_page
 {
 	my $req=HTTP::Request->new(GET => shift);
 	my $rsp=$agent->request($req);
-
 	return $rsp->decoded_content() if($rsp->is_success);
 	undef;
 }
 
-
+sub wget_page
+{
+	my $cmd="wget -O- ".shift;
+	my $page=qx/$cmd/;
+	print "$page\n";
+}
 
 
 sub to_post
@@ -72,6 +79,7 @@ sub to_post
 	while(my @t=@{$stream->get_tag("div")}) {
 		next if(not $t[1]->{class}=~/post .*shortcuts_item$/);
 		my $post=$t[1]->{id};
+#print "post founf $post\n";
 		$post=~s/^post_//;
 		return $post;
 	}
