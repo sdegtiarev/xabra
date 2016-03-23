@@ -58,11 +58,12 @@ void main(string[] arg)
 {
 	Post[string] data;
 	int id=0;
-	bool list=0, total=0;
+	bool list=0, total=0, marks=0;
 	getopt(arg,
 		  "p|post", &id
 		, "l|list", &list
 		, "t|total", &total
+		, "m|marks", &marks
 	);
 
 	auto fd=File(arg[1], "r");
@@ -113,6 +114,21 @@ void main(string[] arg)
 		writeln(typeid(rng));
 		foreach(ts; sum.keys.sort)
 			writeln(ts," ",sum[ts]);
+	}
+	if(marks) {
+		float[ulong] sum;
+		foreach(post; data) {
+			foreach(stat; post.hist_) {
+				if(stat.ts in sum)
+					sum[stat.ts]+=stat.dm;
+				else
+					sum[stat.ts]=stat.dm;
+			}
+		}
+		auto rng=sum.keys.sort;
+		writeln(typeid(rng));
+		foreach(ts; sum.keys.sort)
+			writeln(ts," ",sum[ts]*200);
 	}
 }
 
