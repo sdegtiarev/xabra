@@ -34,49 +34,6 @@ void main(string[] arg)
 					writeln("    ",y.name);
 			}
 		}
-/*
-	writeln(s.name);
-	foreach(c; s.children) {
-		if(c.name == "inner") {
-			writeln("  ",c.name);
-			foreach(t; c.children) {
-				if(t.name =="column-wrapper") {
-					writeln("    ",t.name);
-					foreach(u; t.children) {
-						//if(u.name == "content_left js-content_left") {
-						if(u.name == "content_left") {
-							writeln("      ",u.name);
-							foreach(v; u.children) {
-								if(v.name == "posts_list") {
-									writeln("        ", v.name);
-									foreach(w; v.children) {
-										//if(w.name == "posts shortcuts_items") {
-										if(w.name == "posts") {
-											writeln("          ",w.name);
-											foreach(x; w.children) {
-												//if(x.name =="post shortcuts_item") {
-												if(x.name =="post") {
-													writeln("            ",x.name,"(",x.id[5..$],")");
-													foreach(y; x.children) {
-														if(y.name == "published") {
-															writeln("              ",y.name,": ",y.text);
-														} else {
-															writeln("              ",y.name);
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-*/
 }
 
 

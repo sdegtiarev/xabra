@@ -6,7 +6,9 @@ import std.range;
 import std.algorithm;
 import std.datetime;
 import std.traits;
+import std.typecons;
 import std.getopt;
+import core.stdc.math;
 
 struct Post
 {
@@ -87,34 +89,37 @@ void main(string[] arg)
 	if(list) foreach(post; data.byValue)
 		writeln(post.hist_.length," ",post.name_," ",post.at);
 
-	//// list post start/end times
-	//foreach(post; data.byValue)
-	//	writeln(post.name_,": ", post.at, " -- ", post.begin, " -- ", post.end);
-
 	if(id) {
+		float[ulong] sum=average(total_views(data));
 		auto post=data["post_"~to!string(id)];
 		writeln(post);
-		foreach(stat; post.hist_) {
-			ulong t=(Post.epoch+dur!"seconds"(stat.ts)-post.at).total!"seconds";
-			writeln(t," ",stat.dv);
+		auto t0=(post.at-Post.epoch).total!"seconds";
+		float[ulong] dv;
+		foreach(stat; post.hist_)
+			dv[stat.ts]=stat.dv;
+		auto sdv=average(dv);
+
+		foreach(t; dv.keys.sort) {
+			if(sdv[t] > 0) writeln(t-t0," ",log(sdv[t]/sum[t]));
 		}
 	}
 
 	if(total) {
-		float[ulong] sum;
-		foreach(post; data) {
-			foreach(stat; post.hist_) {
-				if(stat.ts in sum)
-					sum[stat.ts]+=stat.dv;
-				else
-					sum[stat.ts]=stat.dv;
-			}
-		}
-		auto rng=sum.keys.sort;
-		writeln(typeid(rng));
+		float[ulong] sum=average(total_views(data));
+
+		//writeln("raw data");
 		foreach(ts; sum.keys.sort)
 			writeln(ts," ",sum[ts]);
+
+		////writeln("sum.averaged data");
+		//auto avg=average(sum);
+		//foreach(ts; avg.keys.sort)
+		//	writeln(ts," ",avg[ts]);
+		////foreach(t; smoothAvg(sum))
+		////	writeln(t[0]," ",t[1]);
 	}
+
+
 	if(marks) {
 		float[ulong] sum;
 		foreach(post; data) {
@@ -132,8 +137,37 @@ void main(string[] arg)
 	}
 }
 
+
+float[ulong] total_views(Post[string] data)
+{
+	float[ulong] sum;
+	foreach(post; data) {
+		foreach(stat; post.hist_) {
+			if(stat.ts in sum)
+				sum[stat.ts]+=stat.dv;
+			else
+				sum[stat.ts]=stat.dv;
+		}
+	}
+	return sum;
+}
+
+
+
+auto average(R)(R data) {
+	auto r=data;
+	auto ts=data.keys.sort;
+	while(ts.length > 5) {
+		auto x=ts.take(5);
+		auto y=x.map!(a => data[a]).sum/5;
+		r[x[2]]=y;
+		ts.popFront();
+	}
+	return r;
+}
+
+
 auto smoothAvg(R)(R r)
-if(isInputRange!(Unqual!R))
 {
 	return SmoothAvg!R(r);
 }
@@ -143,26 +177,48 @@ struct SmoothAvg(R)
 	alias T=ElementType!(Unqual!R);
 	this(R r) {
 		data_=r;
-		i_=0;
+		stream_=data_.keys.sort;
 	}
 
 	@property bool empty() const {
-		return i_ >= data_.length;
+		return stream_.empty;
 	}
-	T front() {
-		if(i_ < 2 || i_ > data_.length-3) {
-			return data_[i_];
-		}
-		T s=0;
-		foreach(v; data_[i_-2..i_+3]) s+=v;
-		return s/5;
+	auto front() {
+		auto sample=stream_.map!(a => data_[a]).take(5);
+		auto l=sample.length;
+		return tuple(stream_.front, sample.sum/l);
 	}
-	void popFront() {
-		++i_;
-	}
+	void popFront() { stream_.popFront(); }
 
 	R data_;
-	size_t i_;
+	typeof(data_.keys.sort) stream_;
+}
+
+auto medianAvg(R)(R r)
+{
+	return MedianAvg!R(r);
+}
+struct MedianAvg(R)
+{
+	alias T=ElementType!(Unqual!R);
+	this(R r) {
+		data_=r;
+		stream_=data_.keys.sort;
+	}
+
+	@property bool empty() const {
+		return stream_.empty;
+	}
+	auto front() {
+		auto sample=stream_.map!(a => data_[a]).take(5);//.sort;
+		auto ss=sample[0..$];
+writeln("# ",typeid(ss),": ",ss.length, " => ", typeid(T));
+		return tuple(stream_.front, sample[sample.length/2]);
+	}
+	void popFront() { stream_.popFront(); }
+
+	R data_;
+	typeof(data_.keys.sort) stream_;
 }
 
 
