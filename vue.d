@@ -28,6 +28,7 @@ struct Post
 	@property auto at() const { return posted_; }
 	@property auto begin() const { return first_.ts; }
 	@property auto end() const { return last_.ts; }
+	@property auto max() const { return last_.view; }
 
 	this(T)(T name, string at, Post.Stat stat)
 	{
@@ -46,7 +47,6 @@ struct Post
 		stat.dv=(stat.view-last_.view)/dt;
 		stat.dm=(stat.mark-last_.mark)/dt;
 		stat.dc=(stat.comm-last_.comm)/dt;
-//writeln("mark ", stat.mark,", last ",last_.mark,", dt=",dt," => ",stat.dm);
 
 		last_=stat;
 		hist_.insert(stat);
@@ -66,7 +66,7 @@ void main(string[] arg)
 	bool list=0, total=0, log_scale;
 	getopt(arg,
 		  "p|post", &id
-		, "L|log", &log_scale
+		, "log", &log_scale
 		, "l|list", &list
 		, "t|total", &total
 		, "m|mark", &mid
@@ -92,7 +92,7 @@ void main(string[] arg)
 
 	// list posts
 	if(list) foreach(post; data.byValue)
-		writeln(post.hist_.length," ",post.name_," ",post.at);
+		writeln(post.hist_.length," ",post.max," ",post.name_," ",post.at);
 
 	if(id) {
 		float[DateTime] sum=average(total_views(data));
