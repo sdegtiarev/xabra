@@ -65,8 +65,9 @@ void main(string[] arg)
 	int id=0, mid=0, cid=0;
 	bool list=0, total=0, log_scale;
 	getopt(arg,
-		  "p|post", &id
-		, "log", &log_scale
+		  config.caseSensitive, config.bundling
+		, "p|post", &id
+		, "L|log", &log_scale
 		, "l|list", &list
 		, "t|total", &total
 		, "m|mark", &mid
