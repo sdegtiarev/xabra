@@ -10,7 +10,7 @@ use utf8;
 my $parser=new DateTime::Format::Natural;
 my $url="https://habrahabr.ru/all/page";
 my $depth=1;
-my $method=get_page;
+my $get=get_page;
 
 while($ARGV[0]=~/^-/) {
 	my $opt=shift;
@@ -18,7 +18,7 @@ while($ARGV[0]=~/^-/) {
 	
 	if($opt=~s/^-r//) { $rep=($opt eq "")? shift : $opt; }
 	elsif($opt=~s/^-d//) { $depth=($opt eq "")? shift : $opt; }
-	elsif($opt=~s/^-w//) { $method=wget_page; unshift "-$opt" if($opt ne ""); }
+	elsif($opt=~s/^-w//) { $get=wget_page; unshift(@ARGV,"-$opt") if($opt ne ""); }
 
 	elsif($opt=~s/^-h//) { usage(); exit(0); }
 	else { usage(); die "$opt: invalid option"; }
@@ -39,17 +39,16 @@ sub xabrastat
 {
 	my $url=shift;
 	my $time=DateTime->now('time_zone' => 'Europe/Moscow');
-	for(my $n=1; my $page=$method->($url.$n); $n++) {
+	for(my $n=1; my $page=$get->($url.$n); $n++) {
 		my $stream=HTML::TokeParser->new(\$page) or die "parser: $!";
 
 		while(my $id=to_post($stream)) {
-#print "post $id\n";
 			my ($post_date,@stat)=post_stat($stream);
 			my $at=post_date($post_date);
 			return 1 if(not defined $at);
 			if($stat[0]=~s/k$// and $stat[0]=~s/,/./) { $stat[0]*=1000; }
 
-			printf "%s %-6u %s %-6d %-6d %-6d\n", $time, $id, $at, @stat;
+			printf "%s %-6u %s    %-6d %-6d %-6d\n", $time, $id, $at, @stat;
 		}
 	}
 	return 1;
@@ -67,9 +66,9 @@ sub get_page
 
 sub wget_page
 {
-	my $cmd="wget -O- ".shift;
+	my $cmd="wget -qO- ".shift;
 	my $page=qx/$cmd/;
-	print "$page\n";
+	$page;
 }
 
 
@@ -79,7 +78,6 @@ sub to_post
 	while(my @t=@{$stream->get_tag("div")}) {
 		next if(not $t[1]->{class}=~/post .*shortcuts_item$/);
 		my $post=$t[1]->{id};
-#print "post founf $post\n";
 		$post=~s/^post_//;
 		return $post;
 	}
@@ -125,27 +123,28 @@ sub post_date
 {
 	my $post_date=shift;
 	my $now=DateTime->now('time_zone' => 'Europe/Moscow');
+	utf8::decode($post_date);
 	$post_date=~s/^\s+//;
-	$post_date=~s/янв.*в /Jan at /;
-	$post_date=~s/фев.*в /Feb at /;
-	$post_date=~s/мар.*в /Mar at /;
-	$post_date=~s/апр.*в /Apr at /;
-	$post_date=~s/мая.*в /May at /;
-	$post_date=~s/июн.*в /Jun at /;
-	$post_date=~s/июл.*в /Jul at /;
-	$post_date=~s/авг.*в /Aug at /;
-	$post_date=~s/сен.*в /Sep at /;
-	$post_date=~s/окт.*в /Oct at /;
-	$post_date=~s/ноя.*в /Nov at /;
-	$post_date=~s/дек.*в /Dec at /;
-	$post_date=~s/вчера в /yesterday at /;
-	$post_date=~s/сегодня в /today at /;
+	$post_date=~s/янв.*в /Jan at /i;
+	$post_date=~s/фев.*в /Feb at /i;
+	$post_date=~s/мар.*в /Mar at /i;
+	$post_date=~s/апр.*в /Apr at /i;
+	$post_date=~s/мая.*в /May at /i;
+	$post_date=~s/июн.*в /Jun at /i;
+	$post_date=~s/июл.*в /Jul at /i;
+	$post_date=~s/авг.*в /Aug at /i;
+	$post_date=~s/сен.*в /Sep at /i;
+	$post_date=~s/окт.*в /Oct at /i;
+	$post_date=~s/ноя.*в /Nov at /i;
+	$post_date=~s/дек.*в /Dec at /i;
+	$post_date=~s/вчера в /yesterday at /i;
+	$post_date=~s/сегодня в /today at /i;
 
 	my $str=$parser->extract_datetime($post_date);
 	my $dt=$parser->parse_datetime($str);
 	$dt->set_time_zone('Europe/Moscow');
 	if(DateTime->compare($now,$dt) < 0) {
-		print STDERR "parsed: $str\n";
+		print STDERR "parsed: $post_date => $str\n";
 		print STDERR "negative offset $now from $dt\n";
 		exit(1);
 	}
