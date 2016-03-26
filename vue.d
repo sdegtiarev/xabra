@@ -62,7 +62,7 @@ struct Post
 void main(string[] arg)
 {
 	Post[int] data;
-	int id=0, mid=0, cid=0;
+	int id=0, mid=0, cid=0, cm=0;
 	bool list=0, total=0, log_scale;
 	getopt(arg,
 		  config.caseSensitive, config.bundling
@@ -72,6 +72,7 @@ void main(string[] arg)
 		, "t|total", &total
 		, "m|mark", &mid
 		, "c|comment", &cid
+		, "r", &cm
 	);
 
 	auto fd=File(arg[1], "r");
@@ -93,7 +94,7 @@ void main(string[] arg)
 
 	// list posts
 	if(list) foreach(post; data.byValue)
-		writeln(post.hist_.length," ",post.max," ",post.name_," ",post.at);
+		writeln(post.hist_.length," ",post.max," ",(post.begin-post.at).total!"minutes"," ",post.name_," ",post.at);
 
 	if(id) {
 		float[DateTime] sum=average(total_views(data));
@@ -158,6 +159,21 @@ void main(string[] arg)
 				writeln(ts," ",sdc[t]/sum[t]);
 				//writeln(t," ",sdc[t], " ",post.hist_.equalRange(Post.Stat(t)).front.comm);
 		}
+	}
+
+	if(cm) {
+		auto post=data[cm];
+		writeln("post ",post);
+		foreach(stat; post.hist_) {
+			if(stat.view == 0 || stat.mark == 0 || stat.comm == 0)
+				continue;
+			float view=stat.view;
+			if(log_scale)
+				writeln(log(stat.mark/view)," ",log(stat.comm/view));
+			else
+				writeln(stat.mark/view," ",stat.comm/view);
+		}
+
 	}
 
 
