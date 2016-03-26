@@ -25,28 +25,28 @@ struct Post
 	Stat first_, last_;
 	RedBlackTree!(Stat, "a.ts < b.ts", false) hist_;
 
-	//@property auto at() const { return DateTime.fromISOExtString(posted_); }
-	//@property auto begin() const { return DateTime.fromISOExtString(first_.ts); }
-	//@property auto end() const { return DateTime.fromISOExtString(last_.ts); }
 	@property auto at() const { return posted_; }
 	@property auto begin() const { return first_.ts; }
 	@property auto end() const { return last_.ts; }
 
-	this(string name, string at, Post.Stat stat)
+	this(T)(T name, string at, Post.Stat stat)
 	{
 		hist_=make!(typeof(hist_))();
-		this.name_=name;
+		this.name_=to!string(name);
 		this.posted_=DateTime.fromISOExtString(at);
 		first_=last_=stat;
 	}
 
 	void add(Post.Stat stat)
 	{
-		//float dt=(stat.ts-end).to!TickDuration.seconds;
 		float dt=(stat.ts-end).total!"seconds";
+		if(stat.view < last_.view) stat.view=last_.view;
+		if(stat.mark < last_.mark) stat.mark=last_.mark;
+		if(stat.comm < last_.comm) stat.comm=last_.comm;
 		stat.dv=(stat.view-last_.view)/dt;
 		stat.dm=(stat.mark-last_.mark)/dt;
 		stat.dc=(stat.comm-last_.comm)/dt;
+//writeln("mark ", stat.mark,", last ",last_.mark,", dt=",dt," => ",stat.dm);
 
 		last_=stat;
 		hist_.insert(stat);
@@ -61,25 +61,27 @@ struct Post
 
 void main(string[] arg)
 {
-	Post[string] data;
-	int id=0;
-	bool list=0, total=0, marks=0;
+	Post[int] data;
+	int id=0, mid=0, cid=0;
+	bool list=0, total=0, log_scale;
 	getopt(arg,
 		  "p|post", &id
+		, "L|log", &log_scale
 		, "l|list", &list
 		, "t|total", &total
-		, "m|marks", &marks
+		, "m|mark", &mid
+		, "c|comment", &cid
 	);
 
 	auto fd=File(arg[1], "r");
 	foreach(line; fd.byLine) {
 		auto t=line.split;
 		string ts=t[0].idup;
-		string name=t[1].idup;
+		int name=to!int(t[1]);
 		string at=t[2].idup;
 		auto v=to!uint(t[3]);
-		auto c=to!uint(t[4]);
-		auto m=to!uint(t[5]);
+		auto m=to!uint(t[4]);
+		auto c=to!uint(t[5]);
 
 		auto post=Post(name, at, Post.Stat(DateTime.fromISOExtString(ts), v,m,c));
 		if(name in data)
@@ -93,65 +95,82 @@ void main(string[] arg)
 		writeln(post.hist_.length," ",post.name_," ",post.at);
 
 	if(id) {
-//<<<<<<< HEAD
-		//float[ulong] sum=average(total_views(data));
 		float[DateTime] sum=average(total_views(data));
-		auto post=data[to!string(id)];
-		writeln(post);
+		auto post=data[id];
 		auto t0=post.at;
-		//float[ulong] dv;
 		float[DateTime] dv;
 		foreach(stat; post.hist_)
 			dv[stat.ts]=stat.dv;
 		auto sdv=average(dv);
 
-		foreach(t; dv.keys.sort) {
-			if(sdv[t] > 0) writeln(t-t0," ",log(sdv[t]/sum[t]));
-//=======
-//		auto post=data[to!string(id)];
-//		writeln("post ",id);
-//		foreach(stat; post.hist_) {
-//			ulong t=(stat.ts-post.at).total!"seconds";
-//			writeln(t," ",stat.dv);
-//>>>>>>> wget
+		writeln("post ",post);
+		foreach(t; dv.keys.sort)
+		if(sum[t] > 0) {
+			auto ts=(t-t0).total!"seconds"/3600.;
+			if(log_scale && sdv[t] > 0)
+				writeln(ts," ",log(sdv[t]/sum[t]));
+			else
+				writeln(ts," ",sdv[t]/sum[t]);
 		}
 	}
+
+
+
+	if(mid) {
+		float[DateTime] sum=average(total_views(data));
+		auto post=data[mid];
+		auto t0=post.at;
+		float[DateTime] dm;
+		foreach(stat; post.hist_)
+			dm[stat.ts]=stat.dm;
+		auto sdm=average(dm);
+
+		writeln("post ",post);
+		foreach(t; dm.keys.sort)
+		if(sum[t] > 0) {
+			auto ts=(t-t0).total!"seconds"/3600.;
+			if(log_scale && sdm[t] > 0)
+				writeln(ts," ",log(sdm[t]/sum[t]));
+			else
+				writeln(ts," ",sdm[t]/sum[t]);
+				//writeln(t," ",sdm[t], " ",post.hist_.equalRange(Post.Stat(t)).front.mark);
+		}
+	}
+
+
+	if(cid) {
+		float[DateTime] sum=average(total_views(data));
+		auto post=data[cid];
+		auto t0=post.at;
+		float[DateTime] dc;
+		foreach(stat; post.hist_)
+			dc[stat.ts]=stat.dc;
+		auto sdc=average(dc);
+
+		writeln("post ",post);
+		foreach(t; dc.keys.sort)
+		if(sum[t] > 0) {
+			auto ts=(t-t0).total!"seconds"/3600.;
+			if(log_scale && sdc[t] > 0)
+				writeln(ts," ",log(sdc[t]/sum[t]));
+			else
+				writeln(ts," ",sdc[t]/sum[t]);
+				//writeln(t," ",sdc[t], " ",post.hist_.equalRange(Post.Stat(t)).front.comm);
+		}
+	}
+
 
 	if(total) {
-//<<<<<<< HEAD
-		//float[ulong] sum=average(total_views(data));
 		float[DateTime] sum=average(total_views(data));
+		DateTime t0=sum.keys.sort[0].date;
 		foreach(ts; sum.keys.sort)
-			writeln(ts-sum[0]," ",sum[ts]);
-	}
-
-
-	if(marks) {
-//		float[ulong] sum;
-//=======
-		float[DateTime] sum;
-//>>>>>>> wget
-		foreach(post; data) {
-			foreach(stat; post.hist_) {
-				if(stat.ts in sum)
-					sum[stat.ts]+=stat.dm;
-				else
-					sum[stat.ts]=stat.dm;
-			}
-		}
-//<<<<<<< HEAD
-		auto rng=sum.keys.sort;
-		writeln(typeid(rng));
-		foreach(ts; sum.keys.sort)
-			writeln(ts," ",sum[ts]*200);
+			writeln((ts-t0).total!"seconds"/3600.," ",sum[ts]);
 	}
 }
 
 
-//float[ulong] total_views(Post[string] data)
-float[DateTime] total_views(Post[string] data)
+float[DateTime] total_views(Post[int] data)
 {
-	//float[ulong] sum;
 	float[DateTime] sum;
 	foreach(post; data) {
 		foreach(stat; post.hist_) {
@@ -174,25 +193,6 @@ auto average(R)(R data) {
 		auto y=x.map!(a => data[a]).sum/5;
 		r[x[2]]=y;
 		ts.popFront();
-//=======
-//		DateTime[] ts=sum.keys.sort;
-//		foreach(t; ts)
-//			writeln((t-ts[0]).total!"seconds"," ",sum[t]);
-//	}
-//	if(favorites) {
-//		float[DateTime] sum;
-//		foreach(post; data) {
-//			foreach(stat; post.hist_) {
-//				if(stat.ts in sum)
-//					sum[stat.ts]+=stat.dm;
-//				else
-//					sum[stat.ts]=stat.dm;
-//			}
-//		}
-//		DateTime[] ts=sum.keys.sort;
-//		foreach(t; ts)
-//			writeln((t-ts[0]).total!"seconds"," ",sum[t]);
-//>>>>>>> wget
 	}
 	return r;
 }
