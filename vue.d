@@ -25,6 +25,7 @@ struct Post
 	Stat first_, last_;
 	RedBlackTree!(Stat, "a.ts < b.ts", false) hist_;
 
+	@property auto id() const { return name_; }
 	@property auto at() const { return posted_; }
 	@property auto begin() const { return first_.ts; }
 	@property auto end() const { return last_.ts; }
@@ -62,17 +63,19 @@ struct Post
 void main(string[] arg)
 {
 	Post[int] data;
-	int id=0, mid=0, cid=0, cm=0;
-	bool list=0, total=0, log_scale;
+	int id=0, mid=0, cid=0, cm=0, raw;
+	bool list=0, gap=0, total=0, log_scale;
 	getopt(arg,
 		  config.caseSensitive, config.bundling
 		, "p|post", &id
 		, "L|log", &log_scale
 		, "l|list", &list
+		, "g|gap", &gap
 		, "t|total", &total
 		, "m|mark", &mid
 		, "c|comment", &cid
-		, "r", &cm
+		//, "r", &cm
+		, "r|raw", &raw
 	);
 
 	auto fd=File(arg[1], "r");
@@ -105,14 +108,45 @@ void main(string[] arg)
 			dv[stat.ts]=stat.dv;
 		auto sdv=average(dv);
 
+		float mx=0;
+		foreach(t; sdv.keys.sort) {
+			sdv[t]/=sum[t];
+			if(sdv[t] > mx)
+				mx=sdv[t];
+		}
+
 		writeln("post ",post);
-		foreach(t; dv.keys.sort)
+		foreach(t; sdv.keys.sort)
 		if(sum[t] > 0) {
 			auto ts=(t-t0).total!"seconds"/3600.;
-			if(log_scale && sdv[t] > 0)
-				writeln(ts," ",log(sdv[t]/sum[t]));
-			else
-				writeln(ts," ",sdv[t]/sum[t]);
+			if(log_scale) {
+				auto v=(sdv[t] > 0)? log(sdv[t]) : -10;
+				if(v > -6)
+					writeln(ts," ",v);
+			}
+			else {
+				writeln(ts," ",sdv[t]/mx);
+			}
+		}
+	}
+	if(raw) {
+		auto post=data[raw];
+		auto t0=post.at;
+		float[DateTime] dv;
+		foreach(stat; post.hist_)
+			dv[stat.ts]=stat.dv;
+		auto sdv=average(dv);
+
+		float mx=0;
+		foreach(t; sdv.keys.sort) {
+			if(sdv[t] > mx)
+				mx=sdv[t];
+		}
+
+		writeln("post ",post);
+		foreach(t; sdv.keys.sort) {
+			auto ts=(t-t0).total!"seconds"/3600.;
+			writeln(ts," ",sdv[t]/mx);
 		}
 	}
 
@@ -135,7 +169,6 @@ void main(string[] arg)
 				writeln(ts," ",log(sdm[t]/sum[t]));
 			else
 				writeln(ts," ",sdm[t]/sum[t]);
-				//writeln(t," ",sdm[t], " ",post.hist_.equalRange(Post.Stat(t)).front.mark);
 		}
 	}
 
@@ -157,7 +190,6 @@ void main(string[] arg)
 				writeln(ts," ",log(sdc[t]/sum[t]));
 			else
 				writeln(ts," ",sdc[t]/sum[t]);
-				//writeln(t," ",sdc[t], " ",post.hist_.equalRange(Post.Stat(t)).front.comm);
 		}
 	}
 
@@ -182,6 +214,27 @@ void main(string[] arg)
 		DateTime t0=sum.keys.sort[0].date;
 		foreach(ts; sum.keys.sort)
 			writeln((ts-t0).total!"seconds"/3600.," ",sum[ts]);
+	}
+
+
+	if(gap) {
+		foreach(post; data) {
+		//	DateTime last=post.at;
+		//	int cnt=0;
+		//	foreach(stat; post.hist_) {
+		//		auto t=(stat.ts-last);
+		//		if(t > 30.dur!"minutes") {
+		//			//writeln("    ",stat.ts,": ", t.total!"minutes"/60.);
+		//			++cnt;
+		//		}
+		//		last=stat.ts;
+		//	}
+		//	if(!cnt) writeln(post.id);
+		//}
+			if((post.begin-post.at) < dur!"minutes"(30)
+				&& (post.end-post.at) > dur!"hours"(12))
+				writeln(post.id);
+		}
 	}
 }
 

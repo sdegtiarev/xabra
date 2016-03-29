@@ -7,7 +7,7 @@ use DateTime::Format::Natural;
 use Date::Language;
 use utf8;
 
-my $parser=new DateTime::Format::Natural;
+my $parser=new DateTime::Format::Natural('time_zone' => 'Europe/Moscow');
 my $url="https://habrahabr.ru/all/page";
 my $depth=1;
 my $get=get_page;
