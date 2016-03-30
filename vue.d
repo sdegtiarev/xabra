@@ -144,9 +144,17 @@ try {
 				default: assert(0);
 			}
 			writeln();
-			//writeln(post.hist_.length," ",post.max," ",(post.begin-post.at).total!"minutes"," ",post.name_," ",post.at);
 		}
 	}
+
+
+	if(total) {
+		float[DateTime] sum=total_views(data);
+		DateTime t0=sum.keys.minPos[0].date;
+		foreach(ts; sum.keys.sort)
+			writeln((ts-t0).total!"seconds"/3600.," ",sum[ts]);
+	}
+
 
 	if(id) {
 		float[DateTime] sum=average(total_views(data));
@@ -257,13 +265,6 @@ try {
 
 	}
 
-
-	if(total) {
-		float[DateTime] sum=average(total_views(data));
-		DateTime t0=sum.keys.sort[0].date;
-		foreach(ts; sum.keys.sort)
-			writeln((ts-t0).total!"seconds"/3600.," ",sum[ts]);
-	}
 } catch(Exception x) {
 	writefln(x.msg);
 }
