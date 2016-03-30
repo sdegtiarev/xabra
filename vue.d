@@ -7,7 +7,7 @@ import std.algorithm;
 import std.datetime;
 import std.traits;
 import std.typecons;
-import std.getopt;
+import local.getopt;
 import core.stdc.math;
 
 struct Post
@@ -26,10 +26,14 @@ struct Post
 	RedBlackTree!(Stat, "a.ts < b.ts", false) hist_;
 
 	@property auto id() const { return name_; }
+	@property auto length() const { return hist_.length; }
 	@property auto at() const { return posted_; }
 	@property auto begin() const { return first_.ts; }
 	@property auto end() const { return last_.ts; }
 	@property auto max() const { return last_.view; }
+
+	static bool byId(Post a, Post b) { return a.id < b.id; }
+	static bool byAt(Post a, Post b) { return a.at < b.at; }
 
 	this(T)(T name, string at, Post.Stat stat)
 	{
@@ -62,23 +66,47 @@ struct Post
 
 void main(string[] arg)
 {
+try {
+	enum Format { id, length, at, begin, end,
+		total_view, total_mark, total_comment,
+		max_view, max_mark, max_comment
+	};
+
 	Post[int] data;
 	int id=0, mid=0, cid=0, cm=0, raw;
-	bool list=0, gap=0, total=0, log_scale;
-	getopt(arg,
-		  config.caseSensitive, config.bundling
-		, "p|post", &id
-		, "L|log", &log_scale
-		, "l|list", &list
-		, "g|gap", &gap
-		, "t|total", &total
-		, "m|mark", &mid
-		, "c|comment", &cid
-		//, "r", &cm
-		, "r|raw", &raw
+	bool list, total, help, log_scale;
+	Format[] fmt;
+	Format sort_fn=Format.id;
+	Option[] opt;
+	auto x=getopt(opt, arg //,noThrow.yes
+		, "-t|--total", "display sum of all views", &total, true
+		, "-l|--list", "list posts", &list, true
+		, "--format", "list format", &fmt
+		, "--sort", "list sort field", &sort_fn
+		//, "-p|--post", &id
+		//, "-L|--log", &log_scale
+		//, "-l|--list", &list
+		//, "-g|--gap", &gap
+		//, "-t|--total", &total
+		//, "-m|--mark", &mid
+		//, "-c|--comment", &cid
+		////, "r", &cm
+		//, "-r|--raw", &raw
+		, "-h|-?|--help", "print this help", &help, true
 	);
+	if(help) {
+		writeln("vue: analyze habrahabr statistics");
+		writeln("Syntax: vue [-t] [-l] [-h] <file>");
+		writeln("Options:\n",optionHelp(sort!("a.group < b.group || a.group == b.group && a.tag < b.tag")(opt)));
+		return;
+	}
 
-	auto fd=File(arg[1], "r");
+	File fd;
+	if(arg.length < 2)
+		fd.fdopen(0,"r");
+	else
+		fd.open(arg[1], "r");
+
 	foreach(line; fd.byLine) {
 		auto t=line.split;
 		string ts=t[0].idup;
@@ -96,15 +124,36 @@ void main(string[] arg)
 	}
 
 	// list posts
-	if(list) foreach(post; data.byValue)
-		writeln(post.hist_.length," ",post.max," ",(post.begin-post.at).total!"minutes"," ",post.name_," ",post.at);
+	if(list) {
+		if(fmt.empty)
+			fmt~=Format.id;
+		auto cmp=&Post.byId;
+		switch(sort_fn) {
+			case Format.id: cmp=&Post.byId; break;
+			case Format.at: cmp=&Post.byAt; break;
+			default: assert(0);
+		}
+		foreach(post; data.byValue.array.sort!cmp) {
+			foreach(f; fmt)
+			switch(f) {
+				case Format.id: write(post.id, " "); break;
+				case Format.at: write(post.at, " "); break;
+				case Format.begin: write(post.begin, " "); break;
+				case Format.end: write(post.end, " "); break;
+				case Format.length: write(post.length, " "); break;
+				default: assert(0);
+			}
+			writeln();
+			//writeln(post.hist_.length," ",post.max," ",(post.begin-post.at).total!"minutes"," ",post.name_," ",post.at);
+		}
+	}
 
 	if(id) {
 		float[DateTime] sum=average(total_views(data));
 		auto post=data[id];
 		auto t0=post.at;
 		float[DateTime] dv;
-		foreach(stat; post.hist_)
+		foreach(stat; post.hist_) 
 			dv[stat.ts]=stat.dv;
 		auto sdv=average(dv);
 
@@ -215,27 +264,9 @@ void main(string[] arg)
 		foreach(ts; sum.keys.sort)
 			writeln((ts-t0).total!"seconds"/3600.," ",sum[ts]);
 	}
-
-
-	if(gap) {
-		foreach(post; data) {
-		//	DateTime last=post.at;
-		//	int cnt=0;
-		//	foreach(stat; post.hist_) {
-		//		auto t=(stat.ts-last);
-		//		if(t > 30.dur!"minutes") {
-		//			//writeln("    ",stat.ts,": ", t.total!"minutes"/60.);
-		//			++cnt;
-		//		}
-		//		last=stat.ts;
-		//	}
-		//	if(!cnt) writeln(post.id);
-		//}
-			if((post.begin-post.at) < dur!"minutes"(30)
-				&& (post.end-post.at) > dur!"hours"(12))
-				writeln(post.id);
-		}
-	}
+} catch(Exception x) {
+	writefln(x.msg);
+}
 }
 
 
@@ -252,7 +283,6 @@ float[DateTime] total_views(Post[int] data)
 	}
 	return sum;
 }
-
 
 
 auto average(R)(R data) {
