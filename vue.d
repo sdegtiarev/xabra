@@ -19,7 +19,7 @@ struct Post
 	struct Stat
 	{
 		DateTime ts;
-		uint view, mark, comm;
+		uint view, mark, comm, pos;
 		float dv, dm, dc;
 	}
 	Stat first_, last_;
@@ -45,10 +45,9 @@ struct Post
 
 	void add(Post.Stat stat)
 	{
+		if(stat.view <= last_.view)
+			return;
 		float dt=(stat.ts-end).total!"seconds";
-		if(stat.view < last_.view) stat.view=last_.view;
-		if(stat.mark < last_.mark) stat.mark=last_.mark;
-		if(stat.comm < last_.comm) stat.comm=last_.comm;
 		stat.dv=(stat.view-last_.view)/dt;
 		stat.dm=(stat.mark-last_.mark)/dt;
 		stat.dc=(stat.comm-last_.comm)/dt;
@@ -73,7 +72,7 @@ try {
 	};
 
 	Post[int] data;
-	int id=0, mid=0, cid=0, cm=0, raw;
+	int id=0, mid=0, cid=0, cm=0, raw, position, skip;
 	bool list, total, help, log_scale;
 	Format[] fmt;
 	Format sort_fn=Format.id;
@@ -81,8 +80,12 @@ try {
 	auto x=getopt(opt, arg //,noThrow.yes
 		, "-t|--total", "display sum of all views", &total, true
 		, "-l|--list", "list posts", &list, true
+		, "-v|--view", "post views", &id
+		, "-r|--raw", "post raw views", &raw
+		, "-p|--position", "post position", &position
 		, "--format", "list format", &fmt
 		, "--sort", "list sort field", &sort_fn
+		, "--skip", "drop posts started later than the limit", &skip
 		//, "-p|--post", &id
 		//, "-L|--log", &log_scale
 		//, "-l|--list", &list
@@ -107,6 +110,8 @@ try {
 	else
 		fd.open(arg[1], "r");
 
+	uint[string] pos;
+
 	foreach(line; fd.byLine) {
 		auto t=line.split;
 		string ts=t[0].idup;
@@ -116,9 +121,13 @@ try {
 		auto m=to!uint(t[4]);
 		auto c=to!uint(t[5]);
 
-		auto post=Post(name, at, Post.Stat(DateTime.fromISOExtString(ts), v,m,c));
+		if(ts in pos)
+			++pos[ts];
+		else
+			pos[ts]=1;
+
 		if(name in data)
-			data[name].add(Post.Stat(DateTime.fromISOExtString(ts), v,m,c));
+			data[name].add(Post.Stat(DateTime.fromISOExtString(ts), v,m,c, pos[ts]));
 		else
 			data[name]=Post(name, at, Post.Stat(DateTime.fromISOExtString(ts), v,m,c));
 	}
@@ -134,6 +143,8 @@ try {
 			default: assert(0);
 		}
 		foreach(post; data.byValue.array.sort!cmp) {
+		if(skip && (post.begin-post.at).total!"minutes" > skip)
+			continue;
 			foreach(f; fmt)
 			switch(f) {
 				case Format.id: write(post.id, " "); break;
@@ -157,55 +168,64 @@ try {
 
 
 	if(id) {
-		float[DateTime] sum=average(total_views(data));
 		auto post=data[id];
 		auto t0=post.at;
 		float[DateTime] dv;
 		foreach(stat; post.hist_) 
 			dv[stat.ts]=stat.dv;
-		auto sdv=average(dv);
-
-		float mx=0;
-		foreach(t; sdv.keys.sort) {
-			sdv[t]/=sum[t];
-			if(sdv[t] > mx)
-				mx=sdv[t];
-		}
 
 		writeln("post ",post);
-		foreach(t; sdv.keys.sort)
-		if(sum[t] > 0) {
-			auto ts=(t-t0).total!"seconds"/3600.;
-			if(log_scale) {
-				auto v=(sdv[t] > 0)? log(sdv[t]) : -10;
-				if(v > -6)
-					writeln(ts," ",v);
-			}
-			else {
-				writeln(ts," ",sdv[t]/mx);
-			}
-		}
+		foreach(ts; dv.keys.sort)
+			writeln((ts-t0).total!"seconds"/3600.," ",dv[ts]);
 	}
+
 	if(raw) {
-		auto post=data[raw];
+		id=raw;
+		auto post=data[id];
 		auto t0=post.at;
 		float[DateTime] dv;
-		foreach(stat; post.hist_)
-			dv[stat.ts]=stat.dv;
-		auto sdv=average(dv);
-
-		float mx=0;
-		foreach(t; sdv.keys.sort) {
-			if(sdv[t] > mx)
-				mx=sdv[t];
-		}
+		foreach(stat; post.hist_) 
+			dv[stat.ts]=stat.view;
 
 		writeln("post ",post);
-		foreach(t; sdv.keys.sort) {
-			auto ts=(t-t0).total!"seconds"/3600.;
-			writeln(ts," ",sdv[t]/mx);
-		}
+		foreach(ts; dv.keys.sort)
+			writeln((ts-t0).total!"seconds"/3600.," ",dv[ts]);
 	}
+
+	if(position) {
+		id=position;
+		auto post=data[id];
+		auto t0=post.at;
+		float[DateTime] dv;
+		foreach(stat; post.hist_) 
+			dv[stat.ts]=stat.pos;
+
+		writeln("post ",post);
+		foreach(ts; dv.keys.sort)
+			writeln((ts-t0).total!"seconds"/3600.," ",dv[ts]);
+	}
+
+
+	//if(raw) {
+	//	auto post=data[raw];
+	//	auto t0=post.at;
+	//	float[DateTime] dv;
+	//	foreach(stat; post.hist_)
+	//		dv[stat.ts]=stat.dv;
+	//	auto sdv=average(dv);
+
+	//	float mx=0;
+	//	foreach(t; sdv.keys.sort) {
+	//		if(sdv[t] > mx)
+	//			mx=sdv[t];
+	//	}
+
+	//	writeln("post ",post);
+	//	foreach(t; sdv.keys.sort) {
+	//		auto ts=(t-t0).total!"seconds"/3600.;
+	//		writeln(ts," ",sdv[t]/mx);
+	//	}
+	//}
 
 
 

@@ -8,7 +8,8 @@ use Date::Language;
 use utf8;
 
 my $parser=new DateTime::Format::Natural('time_zone' => 'Europe/Moscow');
-my $url="https://habrahabr.ru/all/page";
+#my $url="https://habrahabr.ru/all/page";
+my $url="https://habrahabr.ru/top/page";
 my $depth=1;
 my $get=get_page;
 
@@ -39,16 +40,18 @@ sub xabrastat
 {
 	my $url=shift;
 	my $time=DateTime->now('time_zone' => 'Europe/Moscow');
+	my $pos=1;
 	for(my $n=1; my $page=$get->($url.$n); $n++) {
 		my $stream=HTML::TokeParser->new(\$page) or die "parser: $!";
 
 		while(my $id=to_post($stream)) {
 			my ($post_date,@stat)=post_stat($stream);
 			my $at=post_date($post_date);
-			return 1 if(not defined $at);
+			#next if(($time->epoch()-$at->epoch()) > $depth*24*60*60);
+			next if(not defined $at);
 			if($stat[0]=~s/k$// and $stat[0]=~s/,/./) { $stat[0]*=1000; }
 
-			printf "%s %-6u %s    %-6d %-6d %-6d\n", $time, $id, $at, @stat;
+			printf "%s %-6u %s    %-6d %-6d %-6d %-3d\n", $time, $id, $at, @stat, $pos++;
 		}
 	}
 	return 1;
@@ -146,10 +149,10 @@ sub post_date
 	if(DateTime->compare($now,$dt) < 0) {
 		print STDERR "parsed: $post_date => $str\n";
 		print STDERR "negative offset $now from $dt\n";
-		exit(1);
+		#exit(1);
+		return undef;
 	}
 	my $off=$now->epoch()-$dt->epoch();
-	undef $dt if(($now->epoch()-$dt->epoch()) > $depth*24*60*60);
 	$dt;
 }
 
