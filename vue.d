@@ -8,6 +8,7 @@ import std.datetime;
 import std.traits;
 import std.typecons;
 import local.getopt;
+import local.spline;
 import core.stdc.math;
 
 struct Post
@@ -34,6 +35,7 @@ struct Post
 
 	static bool byId(Post a, Post b) { return a.id < b.id; }
 	static bool byAt(Post a, Post b) { return a.at < b.at; }
+	static bool byLength(Post a, Post b) { return a.length < b.length; }
 
 	this(T)(T name, string at, Post.Stat stat)
 	{
@@ -140,6 +142,7 @@ try {
 		switch(sort_fn) {
 			case Format.id: cmp=&Post.byId; break;
 			case Format.at: cmp=&Post.byAt; break;
+			case Format.length: cmp=&Post.byLength; break;
 			default: assert(0);
 		}
 		foreach(post; data.byValue.array.sort!cmp) {
@@ -162,8 +165,9 @@ try {
 	if(total) {
 		float[DateTime] sum=total_views(data);
 		DateTime t0=sum.keys.minPos[0].date;
+		writeln("total");
 		foreach(ts; sum.keys.sort)
-			writeln((ts-t0).total!"seconds"/3600.," ",sum[ts]);
+			writeln((ts-t0).total!"seconds"/3600.," ",sum[ts]*3600);
 	}
 
 
@@ -174,7 +178,7 @@ try {
 		foreach(stat; post.hist_) 
 			dv[stat.ts]=stat.dv;
 
-		writeln("post ",post);
+		writeln("post ",post.id);
 		foreach(ts; dv.keys.sort)
 			writeln((ts-t0).total!"seconds"/3600.," ",dv[ts]);
 	}
@@ -182,14 +186,28 @@ try {
 	if(raw) {
 		id=raw;
 		auto post=data[id];
-		auto t0=post.at;
+		static if(0) {
+			DateTime t0=post.at.date;
+		} else {
+			DateTime t0=post.at.date;
+			foreach(p; data)
+				t0=min(t0, DateTime(p.begin.date));
+		}
 		float[DateTime] dv;
 		foreach(stat; post.hist_) 
 			dv[stat.ts]=stat.view;
 
-		writeln("post ",post);
+		writeln("post ",post.id);
 		foreach(ts; dv.keys.sort)
 			writeln((ts-t0).total!"seconds"/3600.," ",dv[ts]);
+
+		double[] t=post.hist_.array.map!(a => (a.ts-t0).total!"minutes"/60.).array;
+		double[] v=post.hist_.array.map!(a => cast(double) a.view).array;
+		auto s=spline(t,v);
+		writeln("spline");
+		for(double dt=s.min; dt <=s.max; dt+=.2)
+			writeln(dt, " ", s.der1(dt));
+
 	}
 
 	if(position) {
