@@ -7,60 +7,69 @@ import std.algorithm;
 import std.datetime;
 import std.traits;
 import std.typecons;
+import std.exception;;
 import local.getopt;
 import local.spline;
 import core.stdc.math;
 
 struct Post
 {
-	string name_;
-	DateTime posted_;
-	static immutable auto epoch=DateTime(1970, 1, 1)+dur!"hours"(3);
+	uint _id;
+	DateTime _at;
+	Stat[] _stat;
+	//static immutable auto epoch=DateTime(1970, 1, 1)+dur!"hours"(3);
 
 	struct Stat
 	{
 		DateTime ts;
 		uint view, mark, comm, pos;
-		float dv, dm, dc;
 	}
-	Stat first_, last_;
-	RedBlackTree!(Stat, "a.ts < b.ts", false) hist_;
 
-	@property auto id() const { return name_; }
-	@property auto length() const { return hist_.length; }
-	@property auto at() const { return posted_; }
-	@property auto begin() const { return first_.ts; }
-	@property auto end() const { return last_.ts; }
-	@property auto max() const { return last_.view; }
+	@property auto id() const { return _id; }
+	@property auto empty() const { return _stat.empty; }
+	@property auto length() const { return _stat.length; }
+	@property auto at() const { return _at; }
+	@property auto begin() const { return _stat.front.ts; }
+	@property auto start() const { return _stat.front.ts; }
+	@property auto end() const { return _stat.back.ts; }
+	@property auto max() const { return _stat.back.view; }
 
 	static bool byId(Post a, Post b) { return a.id < b.id; }
 	static bool byAt(Post a, Post b) { return a.at < b.at; }
 	static bool byLength(Post a, Post b) { return a.length < b.length; }
 
-	this(T)(T name, string at, Post.Stat stat)
+
+	void add(DateTime t, uint v, uint m, uint c, uint p)
 	{
-		hist_=make!(typeof(hist_))();
-		this.name_=to!string(name);
-		this.posted_=DateTime.fromISOExtString(at);
-		first_=last_=stat;
+		_stat~=Stat(t,v,m,c,p);
 	}
-
-	void add(Post.Stat stat)
+	void add(Stat s)
 	{
-		if(stat.view <= last_.view)
-			return;
-		float dt=(stat.ts-end).total!"seconds";
-		stat.dv=(stat.view-last_.view)/dt;
-		stat.dm=(stat.mark-last_.mark)/dt;
-		stat.dc=(stat.comm-last_.comm)/dt;
-
-		last_=stat;
-		hist_.insert(stat);
+		_stat~=s;
 	}
 
 	string toString() {
-		return name_~" "~to!string(posted_)~" "~to!string(hist_.length);
+		return to!string(this.id)~" "~to!string(this.at)~" "~to!string(this.length);
 	}
+
+	View view() const
+	{
+		float[] vx,vy;
+		foreach(stat; _stat) {
+			if(!vy.empty && stat.view == vy.back)
+				continue;
+			vx~=hr(at,stat.ts);
+			vy~=stat.view;
+		}
+
+		return View(at, spline!float(vx,vy));
+	}
+}
+
+struct View
+{
+	DateTime at;
+	Spline!float v;
 }
 
 
@@ -68,19 +77,18 @@ struct Post
 void main(string[] arg)
 {
 try {
-	enum Format { id, length, at, begin, end,
+	enum Field { id, length, at, begin, end,
 		total_view, total_mark, total_comment,
 		max_view, max_mark, max_comment
 	};
 
-	Post[int] data;
 	int id=0, mid=0, cid=0, cm=0, raw, position, skip;
-	bool list, total, help, log_scale;
-	Format[] fmt;
-	Format sort_fn=Format.id;
+	bool list, show_total, help, log_scale;
+	Field[] fmt;
+	Field sort_fn=Field.id;
 	Option[] opt;
 	auto x=getopt(opt, arg //,noThrow.yes
-		, "-t|--total", "display sum of all views", &total, true
+		, "-t|--total", "display sum of all views", &show_total, true
 		, "-l|--list", "list posts", &list, true
 		, "-v|--view", "post views", &id
 		, "-r|--raw", "post raw views", &raw
@@ -88,11 +96,12 @@ try {
 		, "--format", "list format", &fmt
 		, "--sort", "list sort field", &sort_fn
 		, "--skip", "drop posts started later than the limit", &skip
+		, "-e|--echo", "testing", delegate(string opt, string arg) { writeln("echo=",arg); }
 		//, "-p|--post", &id
 		//, "-L|--log", &log_scale
 		//, "-l|--list", &list
 		//, "-g|--gap", &gap
-		//, "-t|--total", &total
+		//, "-t|--total", &show_
 		//, "-m|--mark", &mid
 		//, "-c|--comment", &cid
 		////, "r", &cm
@@ -112,65 +121,98 @@ try {
 	else
 		fd.open(arg[1], "r");
 
-	uint[string] pos;
+	auto data=parse(fd);
 
-	foreach(line; fd.byLine) {
-		auto t=line.split;
-		string ts=t[0].idup;
-		int name=to!int(t[1]);
-		string at=t[2].idup;
-		auto v=to!uint(t[3]);
-		auto m=to!uint(t[4]);
-		auto c=to!uint(t[5]);
-
-		if(ts in pos)
-			++pos[ts];
-		else
-			pos[ts]=1;
-
-		if(name in data)
-			data[name].add(Post.Stat(DateTime.fromISOExtString(ts), v,m,c, pos[ts]));
-		else
-			data[name]=Post(name, at, Post.Stat(DateTime.fromISOExtString(ts), v,m,c));
-	}
 
 	// list posts
 	if(list) {
 		if(fmt.empty)
-			fmt~=Format.id;
+			fmt~=Field.id;
 		auto cmp=&Post.byId;
 		switch(sort_fn) {
-			case Format.id: cmp=&Post.byId; break;
-			case Format.at: cmp=&Post.byAt; break;
-			case Format.length: cmp=&Post.byLength; break;
+			case Field.id: cmp=&Post.byId; break;
+			case Field.at: cmp=&Post.byAt; break;
+			case Field.length: cmp=&Post.byLength; break;
 			default: assert(0);
 		}
 		foreach(post; data.byValue.array.sort!cmp) {
-		if(skip && (post.begin-post.at).total!"minutes" > skip)
-			continue;
+		//if(skip && (post.begin-post.at).total!"minutes" > skip)
+		//	continue;
 			foreach(f; fmt)
 			switch(f) {
-				case Format.id: write(post.id, " "); break;
-				case Format.at: write(post.at, " "); break;
-				case Format.begin: write(post.begin, " "); break;
-				case Format.end: write(post.end, " "); break;
-				case Format.length: write(post.length, " "); break;
+				case Field.id: write(post.id, " "); break;
+				case Field.at: write(post.at, " "); break;
+				case Field.begin: write(post.begin, " "); break;
+				case Field.end: write(post.end, " "); break;
+				case Field.length: write(post.length, " "); break;
 				default: assert(0);
 			}
 			writeln();
 		}
 	}
 
+	auto total=total(data);
+	writeln("dt=.25 at ",total.at);
+	for(auto t=total.v.min; t < total.v.max; t+=.25)
+		writeln(t," ",total.v(t));
+	writeln("dt=.1 at ",total.at);
+	for(auto t=total.v.min; t < total.v.max; t+=.1)
+		writeln(t," ",total.v(t));
 
-	if(total) {
+/*
+	DateTime st=data.values.front.start;
+	DateTime et=data.values.back.end;
+	foreach(post; data) {
+		st=min(st, post.start);
+		et=max(et, post.end);
+	}
+writeln("between ", st, " and ", et);
+
+	float dt=.25;
+	float[] total;
+	total.length=cast(ulong) (hr(st,et)/dt);
+	total[]=0;
+	foreach(post; data) {
+		if(post.length < 60)
+			continue;
+//writeln("post ", post.id,"    ", post.start, " -- ", post.end);
+		auto view=post.view;
+
+		float t0=hr(st,view.at)+view.v.min+1e-4;
+		float t2=hr(st,view.at);
+		float t1=hr(st,view.at)+view.v.max-1e-4;
+		foreach(i; 0..total.length) {
+			float t=i*dt;
+//writef("    %-3s: %-6s    [%s - %s]\n", i, t, t0, t1);
+			if(t < t0 || t > t1)
+				continue;
+			total[i]+=view.v.der1(t-t2);
+		}
+	}
+	foreach(i; 1..total.length)
+		writeln(i*dt," ",total[i]);
+*/
+
+
+
+	//if(show_total) {
+	//	writeln("total");
+	//	foreach(stat; total._stat) {
+	//		auto t=(stat.ts-total.at).total!"minutes"/60.;
+	//		writeln(t," ",stat.view);
+	//	}
+	//}
+/*
+	if(show_total) {
 		float[DateTime] sum=total_views(data);
 		DateTime t0=sum.keys.minPos[0].date;
 		writeln("total");
 		foreach(ts; sum.keys.sort)
 			writeln((ts-t0).total!"seconds"/3600.," ",sum[ts]*3600);
 	}
+*/
 
-
+/*
 	if(id) {
 		auto post=data[id];
 		auto t0=post.at;
@@ -199,7 +241,7 @@ try {
 
 		writeln("post ",post.id);
 		foreach(ts; dv.keys.sort)
-			writeln((ts-t0).total!"seconds"/3600.," ",dv[ts]);
+			writeln((ts-t0).show_total!"seconds"/3600.," ",dv[ts]);
 
 		double[] t=post.hist_.array.map!(a => (a.ts-t0).total!"minutes"/60.).array;
 		double[] v=post.hist_.array.map!(a => cast(double) a.view).array;
@@ -220,30 +262,8 @@ try {
 
 		writeln("post ",post);
 		foreach(ts; dv.keys.sort)
-			writeln((ts-t0).total!"seconds"/3600.," ",dv[ts]);
+			writeln((ts-t0).show_total!"seconds"/3600.," ",dv[ts]);
 	}
-
-
-	//if(raw) {
-	//	auto post=data[raw];
-	//	auto t0=post.at;
-	//	float[DateTime] dv;
-	//	foreach(stat; post.hist_)
-	//		dv[stat.ts]=stat.dv;
-	//	auto sdv=average(dv);
-
-	//	float mx=0;
-	//	foreach(t; sdv.keys.sort) {
-	//		if(sdv[t] > mx)
-	//			mx=sdv[t];
-	//	}
-
-	//	writeln("post ",post);
-	//	foreach(t; sdv.keys.sort) {
-	//		auto ts=(t-t0).total!"seconds"/3600.;
-	//		writeln(ts," ",sdv[t]/mx);
-	//	}
-	//}
 
 
 
@@ -280,7 +300,7 @@ try {
 		writeln("post ",post);
 		foreach(t; dc.keys.sort)
 		if(sum[t] > 0) {
-			auto ts=(t-t0).total!"seconds"/3600.;
+			auto ts=(t-t0).show_total!"seconds"/3600.;
 			if(log_scale && sdc[t] > 0)
 				writeln(ts," ",log(sdc[t]/sum[t]));
 			else
@@ -302,6 +322,7 @@ try {
 		}
 
 	}
+*/
 
 } catch(Exception x) {
 	writefln(x.msg);
@@ -309,18 +330,27 @@ try {
 }
 
 
-float[DateTime] total_views(Post[int] data)
+View total(T)(T data)
+if(is(ForeachType!T == Post))
 {
-	float[DateTime] sum;
+	Post.Stat[DateTime] heap;
 	foreach(post; data) {
-		foreach(stat; post.hist_) {
-			if(stat.ts in sum)
-				sum[stat.ts]+=stat.dv;
-			else
-				sum[stat.ts]=stat.dv;
+		auto stat=post._stat;
+		foreach(i; 0..post.length-1) {
+			auto t0=stat[i].ts, t1=stat[i+1].ts;
+			if(t0 !in heap)
+				heap[t0]=Post.Stat(t0);
+			heap[t0].view+=stat[i+1].view-stat[i].view;
+			heap[t0].mark+=stat[i+1].mark-stat[i].mark;
+			heap[t0].comm+=stat[i+1].comm-stat[i].comm;
 		}
 	}
-	return sum;
+
+	Post total;
+	foreach(ts; heap.keys.sort)
+		total.add(heap[ts]);
+	total._at=DateTime(total.begin.date);
+	return total.view;
 }
 
 
@@ -393,3 +423,80 @@ writeln("# ",typeid(ss),": ",ss.length, " => ", typeid(T));
 
 
 
+
+
+
+
+Post[uint] parse(File fd)
+{
+	Post[uint] data;
+	uint[DateTime] position;
+	uint cnt=0;
+	scope(exit) fd.close();
+
+	foreach(line; fd.byLine) {
+	try {
+		++cnt;
+		auto p=parse(line);
+
+		if(p.ts !in position)
+			position[p.ts]=0;
+		++position[p.ts];
+
+		if(p.id !in data)
+			data[p.id]=Post(p.id, p.at);
+		data[p.id].add(p.ts, p.v, p.m, p.c, position[p.ts]);
+
+	} catch(Exception err) {
+		throw new Exception(("parse error at "~to!string(cnt)~": "~line).idup);
+	}
+	}
+
+	return data;
+}
+
+
+
+
+auto parse(char[] line)
+{
+	auto t=line.split;
+	enforce(t.length >= 6);
+	return tuple!("id","at","ts","v","m","c") (
+		  to!uint(t[1])
+		, DateTime.fromISOExtString(t[2])
+		, DateTime.fromISOExtString(t[0])
+		, to!uint(t[3])
+		, to!uint(t[4])
+		, to!uint(t[5])
+	);
+}
+
+
+/*
+Post total(T)(T data)
+if(is(ForeachType!T == Post))
+{
+	Post.Stat[DateTime] heap;
+	foreach(post; data) {
+		foreach(stat; post._stat) {
+			if(stat.ts !in heap)
+				heap[stat.ts]=Post.Stat(stat.ts);
+			heap[stat.ts].view+=stat.view;
+			heap[stat.ts].mark+=stat.mark;
+			heap[stat.ts].comm+=stat.comm;
+		}
+	}
+
+	Post total;
+	foreach(ts; heap.keys.sort)
+		total.add(heap[ts]);
+	total._at=DateTime(total.begin.date);
+	return total;
+}
+*/
+
+float hr(DateTime start, DateTime end)
+{
+	return (end-start).total!"minutes"/60.;
+}

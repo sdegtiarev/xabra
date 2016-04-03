@@ -147,8 +147,8 @@ sub post_date
 	my $dt=$parser->parse_datetime($str);
 	$dt->set_time_zone('Europe/Moscow');
 	if(DateTime->compare($now,$dt) < 0) {
-		print STDERR "parsed: $post_date => $str\n";
-		print STDERR "negative offset $now from $dt\n";
+		#print STDERR "parsed: $post_date => $str\n";
+		#print STDERR "negative offset $now from $dt\n";
 		#exit(1);
 		return undef;
 	}

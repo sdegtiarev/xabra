@@ -2,20 +2,20 @@ module local.spline;
 import std.exception;
 
 
-Spline spline(double[] x, double[] y)
+Spline!T spline(T)(T[] x, T[] y)
 {
-	return Spline(x,y);
+	return Spline!T(x,y);
 }
 
-struct Spline
+struct Spline(T)
 {
 	private immutable ulong N;
-	private double[] X,A,B,C,D;
+	private T[] X,A,B,C,D;
 
-	@property double min() const { return X[0]; }
-	@property double max() const { return X[N]; }
+	@property T min() const { return X[0]; }
+	@property T max() const { return X[N]; }
 
-	double opCall(double x) {
+	T opCall(T x) {
 		enforce(x >= min && x <= max, "spline argument out of range");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
@@ -24,7 +24,7 @@ struct Spline
 		return A[i]+h*(B[i]+h*(C[i]+h*D[i]));
 	}
 
-	double der1(double x) {
+	T der1(T x) {
 		enforce(x >= min && x <= max, "spline argument out of range");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
@@ -34,7 +34,7 @@ struct Spline
 	}
 	
 
-	this(const(double)[] x, const(double)[] y)
+	this(const(T)[] x, const(T)[] y)
 	{
 		assert(x.length == y.length);
 		X=x.dup;
@@ -43,7 +43,7 @@ struct Spline
 		C.length=N+1;
 		B.length=D.length=N;
 
-		double[] p,u,d;
+		T[] p,u,d;
 		p.length=u.length=d.length=N;
 		foreach(i; 1..N) {
 			auto h0=X[i]-X[i-1], h1=X[i+1]-X[i], h2=h0+h1;
@@ -81,8 +81,8 @@ unittest
 	import std.stdio;
 
 	immutable size_t N=10;
-	double[] x,y;
-	double dx=2*PI/N;
+	T[] x,y;
+	T dx=2*PI/N;
 	foreach(i; 0..N+1) {
 		auto t=i*dx;
 		x~=t;
