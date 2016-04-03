@@ -81,16 +81,19 @@ try {
 		total_view, total_mark, total_comment,
 		max_view, max_mark, max_comment
 	};
+	enum Mode { none, view, all };
 
 	int id=0, mid=0, cid=0, cm=0, raw, position, skip;
 	bool list, show_total, help, log_scale;
+	Mode mode;
 	Field[] fmt;
 	Field sort_fn=Field.id;
 	Option[] opt;
-	auto x=getopt(opt, arg //,noThrow.yes
+	getopt(opt, arg //,noThrow.yes
 		, "-t|--total", "display sum of all views", &show_total, true
 		, "-l|--list", "list posts", &list, true
-		, "-v|--view", "post views", &id
+		, "-v|--view", "post views", delegate(string opt, string arg) { id=to!uint(arg); mode= Mode.view; }
+		, "-a|--all", "views summary", delegate { mode= Mode.all; }
 		, "-r|--raw", "post raw views", &raw
 		, "-p|--position", "post position", &position
 		, "--format", "list format", &fmt
@@ -151,67 +154,58 @@ try {
 		}
 	}
 
-	auto total=total(data);
-	writeln("dt=.25 at ",total.at);
-	for(auto t=total.v.min; t < total.v.max; t+=.25)
-		writeln(t," ",total.v(t));
-	writeln("dt=.1 at ",total.at);
-	for(auto t=total.v.min; t < total.v.max; t+=.1)
-		writeln(t," ",total.v(t));
-
-/*
-	DateTime st=data.values.front.start;
-	DateTime et=data.values.back.end;
-	foreach(post; data) {
-		st=min(st, post.start);
-		et=max(et, post.end);
-	}
-writeln("between ", st, " and ", et);
-
-	float dt=.25;
-	float[] total;
-	total.length=cast(ulong) (hr(st,et)/dt);
-	total[]=0;
-	foreach(post; data) {
-		if(post.length < 60)
-			continue;
-//writeln("post ", post.id,"    ", post.start, " -- ", post.end);
-		auto view=post.view;
-
-		float t0=hr(st,view.at)+view.v.min+1e-4;
-		float t2=hr(st,view.at);
-		float t1=hr(st,view.at)+view.v.max-1e-4;
-		foreach(i; 0..total.length) {
-			float t=i*dt;
-//writef("    %-3s: %-6s    [%s - %s]\n", i, t, t0, t1);
-			if(t < t0 || t > t1)
-				continue;
-			total[i]+=view.v.der1(t-t2);
-		}
-	}
-	foreach(i; 1..total.length)
-		writeln(i*dt," ",total[i]);
-*/
-
-
-
-	//if(show_total) {
-	//	writeln("total");
-	//	foreach(stat; total._stat) {
-	//		auto t=(stat.ts-total.at).total!"minutes"/60.;
-	//		writeln(t," ",stat.view);
-	//	}
-	//}
-/*
 	if(show_total) {
-		float[DateTime] sum=total_views(data);
-		DateTime t0=sum.keys.minPos[0].date;
-		writeln("total");
-		foreach(ts; sum.keys.sort)
-			writeln((ts-t0).total!"seconds"/3600.," ",sum[ts]*3600);
+		auto total=total(data);
+		for(auto t=total.v.min; t < total.v.max; t+=.25)
+			writeln(t," ",total.v(t));
 	}
-*/
 
+
+	if(id && mode == Mode.view) {
+		auto total=total(data);
+		auto view=data[id].view;
+		auto t0=hr(total.at,view.at);
+		writeln("total");
+		for(auto t=view.v.min; t < view.v.max; t+=.5)
+			writeln(t," ",total.v(t+t0));
+		writeln("post ", id);
+		for(auto t=view.v.min; t < view.v.max; t+=.5)
+			writeln(t," ",view.v.der1(t)*5);
+		writeln("normalized");
+		for(auto t=view.v.min; t < view.v.max; t+=.5)
+			writeln(t," ",view.v.der1(t)/total.v(t+t0)*10000);
+	}
+	if(mode == Mode.all) {
+		auto total=total(data);
+		View[] view;
+		foreach(post; data) {
+			if(post.length < 10 || hr(post.at, post.begin) > .5)
+				continue;
+			view~=post.view;
+		}
+writeln("averaged  views");
+		float[] x, y, z;
+		for(auto t=total.v.min; t < total.v.max; t+=.1) {
+			float s=0, w=0;
+			foreach(v; view) {
+				auto t0=hr(total.at, v.at);
+				if((t+t0) > v.v.min && (t+t0) < v.v.max) {
+					s+=v.v.der1(t+t0);
+					w+=v.v.der1(t+t0)/total.v(t)*400;
+				}
+			}
+			if(s == 0)
+				break;
+			x~=t;
+			y~=s;
+			z~=w;
+		}
+		foreach(i; 0..x.length)
+			writeln(x[i]," ",y[i]);
+		writeln;
+		foreach(i; 0..x.length)
+			writeln(x[i]," ",z[i]);
+	}
 /*
 	if(id) {
 		auto post=data[id];
