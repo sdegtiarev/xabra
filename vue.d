@@ -61,7 +61,10 @@ struct Post
 			vx~=hr(at,stat.ts);
 			vy~=stat.view;
 		}
-
+		//float[] svy=vy[];
+		//foreach(i; 2..svy.length-2)
+		//	svy[i]=(vy[i-2]+vy[i-1]+vy[i]+vy[i+1]+vy[i+2])/5;
+		//return View(at, spline!float(vx,svy));
 		return View(at, spline!float(vx,vy));
 	}
 }
@@ -157,7 +160,7 @@ try {
 	if(show_total) {
 		auto total=total(data);
 		for(auto t=total.v.min; t < total.v.max; t+=.25)
-			writeln(t," ",total.v(t));
+			writeln(t," ",total.v.der1(t));
 	}
 
 
@@ -167,13 +170,13 @@ try {
 		auto t0=hr(total.at,view.at);
 		writeln("total");
 		for(auto t=view.v.min; t < view.v.max; t+=.5)
-			writeln(t," ",total.v(t+t0));
+			writeln(t," ",total.v.der1(t+t0));
 		writeln("post ", id);
 		for(auto t=view.v.min; t < view.v.max; t+=.5)
 			writeln(t," ",view.v.der1(t)*5);
 		writeln("normalized");
 		for(auto t=view.v.min; t < view.v.max; t+=.5)
-			writeln(t," ",view.v.der1(t)/total.v(t+t0)*10000);
+			writeln(t," ",view.v.der1(t)/total.v.der1(t+t0)*10000);
 	}
 	if(mode == Mode.all) {
 		auto total=total(data);
@@ -183,7 +186,6 @@ try {
 				continue;
 			view~=post.view;
 		}
-writeln("averaged  views");
 		float[] x, y, z;
 		for(auto t=total.v.min; t < total.v.max; t+=.1) {
 			float s=0, w=0;
@@ -191,7 +193,7 @@ writeln("averaged  views");
 				auto t0=hr(total.at, v.at);
 				if((t+t0) > v.v.min && (t+t0) < v.v.max) {
 					s+=v.v.der1(t+t0);
-					w+=v.v.der1(t+t0)/total.v(t)*400;
+					w+=v.v.der1(t+t0)/total.v.der1(t)*4000;
 				}
 			}
 			if(s == 0)
@@ -200,9 +202,10 @@ writeln("averaged  views");
 			y~=s;
 			z~=w;
 		}
+writeln("averaged");
 		foreach(i; 0..x.length)
 			writeln(x[i]," ",y[i]);
-		writeln;
+writeln("weighted");
 		foreach(i; 0..x.length)
 			writeln(x[i]," ",z[i]);
 	}
@@ -343,6 +346,8 @@ if(is(ForeachType!T == Post))
 	Post total;
 	foreach(ts; heap.keys.sort)
 		total.add(heap[ts]);
+foreach(i; 1..total._stat.length)
+	total._stat[i].view+=total._stat[i-1].view;
 	total._at=DateTime(total.begin.date);
 	return total.view;
 }
