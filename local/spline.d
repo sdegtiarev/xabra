@@ -15,7 +15,7 @@ struct Spline(T)
 	@property T min() const { return X[0]; }
 	@property T max() const { return X[N]; }
 
-	T opCall(T x) {
+	T opCall(T x) const {
 		enforce(x >= min && x <= max, "spline argument out of range");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
@@ -24,7 +24,7 @@ struct Spline(T)
 		return A[i]+h*(B[i]+h*(C[i]+h*D[i]));
 	}
 
-	T der1(T x) {
+	T der1(T x) const {
 		enforce(x >= min && x <= max, "spline argument out of range");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}

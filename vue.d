@@ -61,10 +61,6 @@ struct Post
 			vx~=hr(at,stat.ts);
 			vy~=stat.view;
 		}
-		//float[] svy=vy[];
-		//foreach(i; 2..svy.length-2)
-		//	svy[i]=(vy[i-2]+vy[i-1]+vy[i]+vy[i+1]+vy[i+2])/5;
-		//return View(at, spline!float(vx,svy));
 		return View(at, spline!float(vx,vy));
 	}
 }
@@ -73,6 +69,12 @@ struct View
 {
 	DateTime at;
 	Spline!float v;
+
+	this(DateTime at, Spline!float sp) { this.at=at; this.v=sp; }
+
+	@property float start() const { return v.min; }
+	@property float end()   const { return v.max; }
+	float opCall(float t)   const { return v.der1(t); }
 }
 
 
@@ -159,8 +161,16 @@ try {
 
 	if(show_total) {
 		auto total=total(data);
-		for(auto t=total.v.min; t < total.v.max; t+=.25)
-			writeln(t," ",total.v.der1(t));
+		for(auto t=total.start; t < total.end; t+=.25)
+			writeln(t," ",total(t));
+		writeln("smooth 1hr");
+		auto s1=smooth(total.v,1);
+		for(auto t=s1.min; t < s1.max; t+=.25)
+			writeln(t," ",s1.der1(t));
+		writeln("smooth 2hr");
+		auto s2=smooth(total.v,2);
+		for(auto t=s2.min; t < s2.max; t+=.25)
+			writeln(t," ",s2.der1(t));
 	}
 
 
@@ -168,44 +178,45 @@ try {
 		auto total=total(data);
 		auto view=data[id].view;
 		auto t0=hr(total.at,view.at);
-		writeln("total");
-		for(auto t=view.v.min; t < view.v.max; t+=.5)
-			writeln(t," ",total.v.der1(t+t0));
+
 		writeln("post ", id);
-		for(auto t=view.v.min; t < view.v.max; t+=.5)
-			writeln(t," ",view.v.der1(t)*5);
-		writeln("normalized");
-		for(auto t=view.v.min; t < view.v.max; t+=.5)
-			writeln(t," ",view.v.der1(t)/total.v.der1(t+t0)*10000);
+		for(auto t=view.start; t < view.end; t+=.5)
+			writeln(t," ",view(t)*5);
 	}
 	if(mode == Mode.all) {
 		auto total=total(data);
+		auto smt=smooth(total.v,2);
 		View[] view;
 		foreach(post; data) {
 			if(post.length < 10 || hr(post.at, post.begin) > .5)
 				continue;
 			view~=post.view;
 		}
-		float[] x, y, z;
-		for(auto t=total.v.min; t < total.v.max; t+=.1) {
-			float s=0, w=0;
+		float[] x, y, w, z;
+		for(auto t=total.start; t < total.end; t+=.1) {
+			float vy=0, vw=0, vz=0;
 			foreach(v; view) {
 				auto t0=hr(total.at, v.at);
-				if((t+t0) > v.v.min && (t+t0) < v.v.max) {
-					s+=v.v.der1(t+t0);
-					w+=v.v.der1(t+t0)/total.v.der1(t)*4000;
+				if((t+t0) > v.start && (t+t0) < v.end) {
+					vy+=v(t+t0);
+					vw+=v(t+t0)/total(t)*4000;
+					vz+=v(t+t0)/smt(t)*2000;
 				}
 			}
-			if(s == 0)
+			if(vy == 0)
 				break;
 			x~=t;
-			y~=s;
-			z~=w;
+			y~=vy;
+			w~=vw;
+			z~=vz;
 		}
-writeln("averaged");
-		foreach(i; 0..x.length)
-			writeln(x[i]," ",y[i]);
-writeln("weighted");
+//writeln("views");
+//		foreach(i; 0..x.length)
+//			writeln(x[i]," ",y[i]);
+//writeln("weighted");
+//		foreach(i; 0..x.length)
+//			writeln(x[i]," ",w[i]);
+writeln("sample");
 		foreach(i; 0..x.length)
 			writeln(x[i]," ",z[i]);
 	}
@@ -498,4 +509,19 @@ if(is(ForeachType!T == Post))
 float hr(DateTime start, DateTime end)
 {
 	return (end-start).total!"minutes"/60.;
+}
+
+
+
+Spline!T smooth(T)(Spline!T s, float dt)
+{
+	float[] x, y;
+	for(float t=s.min; t < s.max; t+=dt) {
+		x~=t;
+		y~=s(t);
+	}
+	x~=s.max;
+	y~=s(s.max-dt*1e-6);
+
+	return spline(x,y);
 }
