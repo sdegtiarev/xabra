@@ -86,7 +86,7 @@ try {
 		total_view, total_mark, total_comment,
 		max_view, max_mark, max_comment
 	};
-	enum Mode { none, view, all };
+	enum Mode { none, view, all, exp };
 
 	int id=0, mid=0, cid=0, cm=0, raw, position, skip;
 	bool list, show_total, help, log_scale;
@@ -97,14 +97,14 @@ try {
 	getopt(opt, arg //,noThrow.yes
 		, "-t|--total", "display sum of all views", &show_total, true
 		, "-l|--list", "list posts", &list, true
-		, "-v|--view", "post views", delegate(string opt, string arg) { id=to!uint(arg); mode= Mode.view; }
+		, "-v|--view", "post views", delegate(string arg) { id=to!uint(arg); mode= Mode.view; }
 		, "-a|--all", "views summary", delegate { mode= Mode.all; }
 		, "-r|--raw", "post raw views", &raw
 		, "-p|--position", "post position", &position
 		, "--format", "list format", &fmt
 		, "--sort", "list sort field", &sort_fn
 		, "--skip", "drop posts started later than the limit", &skip
-		, "-e|--echo", "testing", delegate(string opt, string arg) { writeln("echo=",arg); }
+		, "-x", "testing", delegate(string arg) { id=to!uint(arg); mode=Mode.exp; }
 		//, "-p|--post", &id
 		//, "-L|--log", &log_scale
 		//, "-l|--list", &list
@@ -176,50 +176,41 @@ try {
 
 	if(id && mode == Mode.view) {
 		auto total=total(data);
+		auto weight=total.v.smooth(2);
 		auto view=data[id].view;
 		auto t0=hr(total.at,view.at);
 
 		writeln("post ", id);
+		//for(auto t=view.start; t < view.end; t+=.5)
+		//	writeln(t," ",view(t));
+		//writeln("weighted");
 		for(auto t=view.start; t < view.end; t+=.5)
-			writeln(t," ",view(t)*5);
+			writeln(t," ",view(t)/weight(t+t0));
 	}
+
+
 	if(mode == Mode.all) {
-		auto total=total(data);
-		auto smt=smooth(total.v,2);
-		View[] view;
-		foreach(post; data) {
-			if(post.length < 10 || hr(post.at, post.begin) > .5)
-				continue;
-			view~=post.view;
-		}
-		float[] x, y, w, z;
-		for(auto t=total.start; t < total.end; t+=.1) {
-			float vy=0, vw=0, vz=0;
-			foreach(v; view) {
-				auto t0=hr(total.at, v.at);
-				if((t+t0) > v.start && (t+t0) < v.end) {
-					vy+=v(t+t0);
-					vw+=v(t+t0)/total(t)*4000;
-					vz+=v(t+t0)/smt(t)*2000;
-				}
-			}
-			if(vy == 0)
-				break;
-			x~=t;
-			y~=vy;
-			w~=vw;
-			z~=vz;
-		}
-//writeln("views");
-//		foreach(i; 0..x.length)
-//			writeln(x[i]," ",y[i]);
-//writeln("weighted");
-//		foreach(i; 0..x.length)
-//			writeln(x[i]," ",w[i]);
-writeln("sample");
-		foreach(i; 0..x.length)
-			writeln(x[i]," ",z[i]);
+		auto av=average(data);
+		for(float t=av.start; t < av.end; t+=.1)
+			writeln(t," ",av(t));
 	}
+
+	if(mode == Mode.exp) {
+		auto total=total(data);
+		auto weight=total.v.smooth(2);
+		auto view=data[id].view;
+		auto av=average(data);
+		auto t0=hr(total.at,view.at);
+
+		writeln("post ", id);
+		for(auto t=max(view.start, av.start) ; t < view.end && t < av.end; t+=.1) {
+			writeln(av(t), view(t)/weight(t+t0));
+		}
+
+	}
+
+
+
 /*
 	if(id) {
 		auto post=data[id];
@@ -364,73 +355,42 @@ foreach(i; 1..total._stat.length)
 }
 
 
-auto average(R)(R data) {
-	auto r=data;
-	auto ts=data.keys.sort;
-	while(ts.length > 5) {
-		auto x=ts.take(5);
-		auto y=x.map!(a => data[a]).sum/5;
-		r[x[2]]=y;
-		ts.popFront();
-	}
-	return r;
-}
-
-
-auto smoothAvg(R)(R r)
+View average(T)(T data)
+if(is(ForeachType!T == Post))
 {
-	return SmoothAvg!R(r);
+	auto total=total(data);
+	auto smt=total.v.smooth(2);
+
+	View[] view;
+	DateTime at=Date(3000,1,1);
+	foreach(post; data) {
+		if(post.length < 10 || hr(post.at, post.begin) > .5)
+			continue;
+		view~=post.view;
+		at=min(at, view.back.at);
+	}
+	
+	float[] x, y;
+	for(float t=0; t < total.end; t+=.5) {
+		float vy=0;
+		uint n=0;
+		foreach(v; view) {
+			auto t0=hr(total.at, v.at);
+			if(t > v.start && t < v.end && (t+t0) < total.end) {
+				vy+=v(t)/smt(t+t0);
+				++n;
+			}
+		}
+		if(n) {
+			x~=t;
+			y~=vy/n;
+		}
+	}
+	foreach(i; 1..y.length)
+		y[i]+=y[i-1];
+
+	return View(at, spline(x,y));
 }
-
-struct SmoothAvg(R)
-{
-	alias T=ElementType!(Unqual!R);
-	this(R r) {
-		data_=r;
-		stream_=data_.keys.sort;
-	}
-
-	@property bool empty() const {
-		return stream_.empty;
-	}
-	auto front() {
-		auto sample=stream_.map!(a => data_[a]).take(5);
-		auto l=sample.length;
-		return tuple(stream_.front, sample.sum/l);
-	}
-	void popFront() { stream_.popFront(); }
-
-	R data_;
-	typeof(data_.keys.sort) stream_;
-}
-
-auto medianAvg(R)(R r)
-{
-	return MedianAvg!R(r);
-}
-struct MedianAvg(R)
-{
-	alias T=ElementType!(Unqual!R);
-	this(R r) {
-		data_=r;
-		stream_=data_.keys.sort;
-	}
-
-	@property bool empty() const {
-		return stream_.empty;
-	}
-	auto front() {
-		auto sample=stream_.map!(a => data_[a]).take(5);//.sort;
-		auto ss=sample[0..$];
-writeln("# ",typeid(ss),": ",ss.length, " => ", typeid(T));
-		return tuple(stream_.front, sample[sample.length/2]);
-	}
-	void popFront() { stream_.popFront(); }
-
-	R data_;
-	typeof(data_.keys.sort) stream_;
-}
-
 
 
 
@@ -482,29 +442,6 @@ auto parse(char[] line)
 	);
 }
 
-
-/*
-Post total(T)(T data)
-if(is(ForeachType!T == Post))
-{
-	Post.Stat[DateTime] heap;
-	foreach(post; data) {
-		foreach(stat; post._stat) {
-			if(stat.ts !in heap)
-				heap[stat.ts]=Post.Stat(stat.ts);
-			heap[stat.ts].view+=stat.view;
-			heap[stat.ts].mark+=stat.mark;
-			heap[stat.ts].comm+=stat.comm;
-		}
-	}
-
-	Post total;
-	foreach(ts; heap.keys.sort)
-		total.add(heap[ts]);
-	total._at=DateTime(total.begin.date);
-	return total;
-}
-*/
 
 float hr(DateTime start, DateTime end)
 {

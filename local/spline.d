@@ -1,5 +1,6 @@
 module local.spline;
 import std.exception;
+import std.conv;
 
 
 Spline!T spline(T)(T[] x, T[] y)
@@ -16,7 +17,7 @@ struct Spline(T)
 	@property T max() const { return X[N]; }
 
 	T opCall(T x) const {
-		enforce(x >= min && x <= max, "spline argument out of range");
+		enforce(x >= min && x <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
 
@@ -25,7 +26,7 @@ struct Spline(T)
 	}
 
 	T der1(T x) const {
-		enforce(x >= min && x <= max, "spline argument out of range");
+		enforce(x >= min && x <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
 
