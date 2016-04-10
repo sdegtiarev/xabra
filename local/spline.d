@@ -20,7 +20,6 @@ struct Spline(T)
 		enforce(x >= min && x <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
-
 		auto h=x-X[i];
 		return A[i]+h*(B[i]+h*(C[i]+h*D[i]));
 	}
@@ -32,6 +31,15 @@ struct Spline(T)
 
 		auto h=x-X[i];
 		return B[i]+h*(2*C[i]+h*3*D[i]);
+	}
+
+	T der2(T x) const {
+		enforce(x >= min && x <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
+		size_t i;
+		for(i=N-1; i > 0 && x < X[i]; --i) {}
+
+		auto h=x-X[i];
+		return 2*(C[i]+h*3*D[i]);
 	}
 	
 
@@ -54,7 +62,7 @@ struct Spline(T)
 			u[i]=h1/h2;
 		}
 		C[0]=C[N]=p[0]=0;
-		
+
 		foreach(i; 2..N) {
 			auto k=d[i-1]/C[i-1];
 			C[i]-=u[i-1]*k;
@@ -63,7 +71,6 @@ struct Spline(T)
 		
 		foreach_reverse(i; 1..N-1) {
 			auto k=u[i+1]/C[i+1];
-			C[i]-=k;
 			p[i]-=p[i+1]*k;
 		}
 		foreach(i; 1..N) C[i]=p[i]/C[i];
@@ -81,23 +88,38 @@ unittest
 	import std.math;
 	import std.stdio;
 
-	immutable size_t N=10;
-	T[] x,y;
-	T dx=2*PI/N;
+	immutable size_t N=5;
+	float[] x,y;
+	float dx=PI/N;
 	foreach(i; 0..N+1) {
 		auto t=i*dx;
 		x~=t;
 		y~=sin(t);
 	}
 
-	auto s=spline(x, y);
+	auto s=spline!float(x, y);
 	immutable size_t M=100;
-	dx=2*PI/M;
-	writeln("spline");
+	dx=PI/M;
+	writeln("sin(x)");
 	foreach(i; 0..M+1) {
 		auto tx=fabs(i*dx-1e-8);
 		auto ty=s(tx);
-		writeln(tx, " ", ty-sin(tx));
+		//writeln(tx, " ", ty-sin(tx));
+		writeln(tx, " ", ty);
+	}
+	writeln("sin'(x)");
+	foreach(i; 0..M+1) {
+		auto tx=fabs(i*dx-1e-8);
+		auto ty=s.der1(tx);
+		//writeln(tx, " ", ty-cos(tx));
+		writeln(tx, " ", ty);
+	}
+	writeln("sin''(x)");
+	foreach(i; 0..M+1) {
+		auto tx=fabs(i*dx-1e-8);
+		auto ty=s.der2(tx);
+		//writeln(tx, " ", ty-cos(tx));
+		writeln(tx, " ", ty);
 	}
 
 
