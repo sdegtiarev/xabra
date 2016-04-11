@@ -120,7 +120,7 @@ if(tree) writeln(ident, "} //",this.name);
 
 string load(int page)
 {
-	auto r=executeShell("wget -qO- https://habrahabr.ru/all/page"~to!string(page)~"/");
+	auto r=executeShell("wget -qO- https://habrahabr.ru/top/page"~to!string(page)~"/");
 	enforce(!r.status, "page load error");
 	return r.output;
 }

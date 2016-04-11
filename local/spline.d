@@ -17,7 +17,7 @@ struct Spline(T)
 	@property T max() const { return X[N]; }
 
 	T opCall(T x) const {
-		enforce(x >= min && x <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
+		enforce((x+1e-6) >= min && (x-1e-6) <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
 		auto h=x-X[i];
@@ -25,7 +25,7 @@ struct Spline(T)
 	}
 
 	T der1(T x) const {
-		enforce(x >= min && x <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
+		enforce((x+1e-6) >= min && (x-1e-6) <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
 
@@ -34,7 +34,7 @@ struct Spline(T)
 	}
 
 	T der2(T x) const {
-		enforce(x >= min && x <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
+		enforce((x+1e-6) >= min && (x-1e-6) <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
 
