@@ -8,9 +8,9 @@ use Date::Language;
 use utf8;
 
 my $parser=new DateTime::Format::Natural('time_zone' => 'Europe/Moscow');
-#my $url="https://habrahabr.ru/all/page";
-my $url="https://habrahabr.ru/top/page";
-my $depth=1;
+my $url="https://habrahabr.ru/all/page";
+#my $url="https://habrahabr.ru/top/page";
+my $depth=2;
 my $get=get_page;
 
 while($ARGV[0]=~/^-/) {
@@ -20,6 +20,8 @@ while($ARGV[0]=~/^-/) {
 	if($opt=~s/^-r//) { $rep=($opt eq "")? shift : $opt; }
 	elsif($opt=~s/^-d//) { $depth=($opt eq "")? shift : $opt; }
 	elsif($opt=~s/^-w//) { $get=wget_page; unshift(@ARGV,"-$opt") if($opt ne ""); }
+	elsif($opt=~s/^-D//) { $url="https://habrahabr.ru/top/page"; $depth=30; }
+	elsif($opt=~s/^-W//) { $url="https://habrahabr.ru/top/weekly/page"; $depth=30; }
 
 	elsif($opt=~s/^-h//) { usage(); exit(0); }
 	else { usage(); die "$opt: invalid option"; }
@@ -47,8 +49,8 @@ sub xabrastat
 		while(my $id=to_post($stream)) {
 			my ($post_date,@stat)=post_stat($stream);
 			my $at=post_date($post_date);
-			#next if(($time->epoch()-$at->epoch()) > $depth*24*60*60);
 			next if(not defined $at);
+			return 1 if(($time->epoch()-$at->epoch()) > $depth*24*60*60);
 			if($stat[0]=~s/k$// and $stat[0]=~s/,/./) { $stat[0]*=1000; }
 
 			printf "%s %-6u %s    %-6d %-6d %-6d %-3d\n", $time, $id, $at, @stat, $pos++;
@@ -144,7 +146,9 @@ sub post_date
 	$post_date=~s/сегодня в /today at /i;
 
 	my $str=$parser->extract_datetime($post_date);
+	return undef if($str=~/^[0-9]+$/);
 	my $dt=$parser->parse_datetime($str);
+	return undef if(not defined $dt);
 	$dt->set_time_zone('Europe/Moscow');
 	if(DateTime->compare($now,$dt) < 0) {
 		#print STDERR "parsed: $post_date => $str\n";
@@ -152,7 +156,6 @@ sub post_date
 		#exit(1);
 		return undef;
 	}
-	my $off=$now->epoch()-$dt->epoch();
 	$dt;
 }
 

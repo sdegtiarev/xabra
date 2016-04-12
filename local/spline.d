@@ -3,9 +3,14 @@ import std.exception;
 import std.conv;
 
 
-Spline!T spline(T)(T[] x, T[] y)
+Spline!T spline(T)(const(T[]) x, const(T[]) y)
 {
 	return Spline!T(x,y);
+}
+
+Spline!T spline(T)(const ref Spline!T rh)
+{
+	return Spline!T(rh);
 }
 
 struct Spline(T)
@@ -22,6 +27,14 @@ struct Spline(T)
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
 		auto h=x-X[i];
 		return A[i]+h*(B[i]+h*(C[i]+h*D[i]));
+	}
+	void opOpAssign(string op)(T sc)
+	{
+		static if(op == "*") {
+			foreach(i; 0..N) { A[i]*=sc; B[i]*=sc; C[i]*=sc; D[i]*=sc; }
+		} else static if(op == "/") {
+			foreach(i; 0..N) { A[i]/=sc; B[i]/=sc; C[i]/=sc; D[i]/=sc; }
+		}
 	}
 
 	T der1(T x) const {
@@ -80,6 +93,15 @@ struct Spline(T)
 			D[i]=(C[i+1]-C[i])/h/3;
 			B[i]=(A[i+1]-A[i])/h-h*(C[i]+h*D[i]);
 		}
+	}
+
+	this(const ref Spline!T rh) {
+		this.N=rh.N;
+		this.X=rh.X.dup;
+		this.A=rh.A.dup;
+		this.B=rh.B.dup;
+		this.C=rh.C.dup;
+		this.D=rh.D.dup;
 	}
 }
 

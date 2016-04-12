@@ -17,7 +17,6 @@ struct Post
 	uint _id;
 	DateTime _at;
 	Stat[] _stat;
-	//static immutable auto epoch=DateTime(1970, 1, 1)+dur!"hours"(3);
 
 	struct Stat
 	{
@@ -103,6 +102,13 @@ struct View
 		y~=v(v.max);
 		return View(at,spline!float(x,y));
 	}
+	View norm() const
+	{
+		float scale=v(v.max);
+		auto s=spline(v);
+		s/=scale;
+		return View(at, s);
+	}
 }
 
 
@@ -111,11 +117,11 @@ void main(string[] arg)
 {
 try {
 	enum Field { id, length, at, start, end };
-	enum Mode { none, view, all, exp };
+	enum Mode { none, view, all, fit, exp };
 
-	int mid=0, cid=0, cm=0, raw, position, skip;
+	int mid=0, cid=0, cm=0, raw, position;
 	int[] post_id;
-	bool list, show_total, help, log_scale, normalize;
+	bool list, show_total, help, log_scale, normalize, weighted, invert;
 	Mode mode;
 	Field[] fmt;
 	Field sort_fn=Field.id;
@@ -127,21 +133,15 @@ try {
 		, "-v|--view", "post views", delegate { mode=Mode.view; }
 		, "-a|--all", "views summary", delegate { mode=Mode.all; }
 		, "-x", "testing", delegate { mode=Mode.exp; }
+		, "-f", delegate { mode=Mode.fit; }
 		, "-r|--raw", "post raw views", &raw
 		, "-p|--position", "post position", &position
-		, "-n|--norm|--normalize", "normalize output", &normalize, true
 		, "--format", "list format", &fmt
 		, "--sort", "list sort field", &sort_fn
-		, "--skip", "drop posts started later than the limit", &skip
-		//, "-p|--post", &id
-		//, "-L|--log", &log_scale
-		//, "-l|--list", &list
-		//, "-g|--gap", &gap
-		//, "-t|--total", &show_
-		//, "-m|--mark", &mid
-		//, "-c|--comment", &cid
-		////, "r", &cm
-		//, "-r|--raw", &raw
+		, "-n|--norm|--normalize", "normalize output", &normalize, true
+		, "-w|--weighted", &weighted
+		, "-i|--invert", &invert
+
 		, "-h|-?|--help", "print this help", &help, true
 	);
 	if(help) {
@@ -158,6 +158,18 @@ try {
 		fd.open(arg[1], "r");
 
 	auto data=parse(fd);
+	if(!post_id.empty) {
+		if(invert) {
+			foreach(id; post_id)
+				data.remove(id);
+		} else {
+			Post[uint] inv=data.dup;
+			foreach(id; post_id)
+				inv.remove(id);
+			foreach(id; keys(inv))
+				data.remove(id);
+		}
+	}
 
 
 	// list posts
@@ -233,10 +245,28 @@ try {
 
 
 	if(mode == Mode.all) {
-		auto av=average(data);
+		auto av=normalize? average(data, weighted).norm : average(data, weighted);
 		for(float t=av.start; t < av.end; t+=.1)
 			writeln(t," ",av(t));
 	}
+
+	if(mode == Mode.fit) {
+
+		auto av=normalize? average(data, weighted).norm : average(data, weighted);
+		foreach(id; post_id) {
+			auto view=data[id].view.smooth(1);
+			auto start=max(view.start,av.start);
+			auto end=min(view.end,av.end);
+			auto sc=fit(view, av);
+			view.v*=sc;
+writeln(cast(uint) (diff(view, av)*100)," ",id);
+//writeln("fit ", cast(uint) (diff(view, av)*100),"%");
+//			for(auto t=start; t < end; t+=.1)
+//				writeln(t," ",view(t)," ",av(t));
+		}
+	}
+
+
 
 
 
@@ -328,7 +358,7 @@ float hr(DateTime start, DateTime end)
 
 
 
-View average(T)(T data)
+View average(T)(T data, bool weight)
 if(is(ForeachType!T == Post))
 {
 	auto total=total(data).view.smooth(2);
@@ -349,7 +379,7 @@ if(is(ForeachType!T == Post))
 		foreach(v; view) {
 			auto t0=hr(total.at, v.at);
 			if(t > v.start && t < v.end && (t+t0) < total.end) {
-				vy+=v(t)/total(t+t0);
+				vy+=weight? v(t)/total(t+t0) : v(t);
 				++n;
 			}
 		}
@@ -364,3 +394,29 @@ if(is(ForeachType!T == Post))
 	return View(at, spline(x,y));
 }
 
+
+auto fit(View a, View b)
+{
+	auto start=max(a.start,b.start);
+	auto end=min(a.end,b.end);
+	float A=0, F=0;
+	for(auto t=start; t < end; t+=.5) {
+		auto x=a(t), y=b(t);
+		A+=x*x;
+		F+=x*y;
+	}
+	return F/A;
+}
+
+auto diff(View a, View b)
+{
+	auto start=max(a.start,b.start);
+	auto end=min(a.end,b.end);
+	float s=0, z=0;
+	for(auto t=start; t < end; t+=.5) {
+		auto x=a(t), y=b(t);
+		s+=(x-y)*(x-y);
+		z+=y*y;
+	}
+	return sqrt(s/z);
+}
