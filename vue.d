@@ -62,7 +62,7 @@ struct Post
 			vx~=hr(at,stat.ts);
 			vy~=stat.view;
 		}
-		return View(at, spline!float(vx,vy));
+		return View(at, spline(vx,vy));
 	}
 	View norm() const
 	{
@@ -75,7 +75,7 @@ struct Post
 			vy~=stat.view/max;
 			last=stat.view;
 		}
-		return View(at, spline!float(vx,vy));
+		return View(at, spline(vx,vy));
 	}
 }
 
@@ -201,12 +201,6 @@ try {
 
 	if(show_total) {
 		auto total=total(data).view.smooth(2);
-		//for(auto t=total.start; t < total.end; t+=.25)
-		//	writeln(t," ",total(t));
-		//writeln("smooth 1hr");
-		//auto s1=smooth(total.v,1);
-		//for(auto t=s1.min; t < s1.max; t+=.25)
-		//	writeln(t," ",s1.der1(t));
 		writeln("smooth 2hr");
 
 		for(auto t=total.start; t < total.end; t+=.25)
@@ -295,6 +289,9 @@ if(is(ForeachType!T == Post))
 	Post total;
 	foreach(ts; heap.keys.sort)
 		total.add(heap[ts]);
+writeln("raw total");
+foreach(st; total._stat)
+writeln(hr(DateTime(total.begin.date),st.ts)," ",st.view);
 	foreach(i; 1..total._stat.length)
 		total._stat[i].view+=total._stat[i-1].view;
 	total._at=DateTime(total.begin.date);
