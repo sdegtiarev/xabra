@@ -14,18 +14,26 @@ struct View
 	@property double end()   const { return v.max; }
 	double opCall(double t)   const { return v.der1(t); }
 	double value(double t)   const { return v(t); }
+	
+	View shift(double dt) {
+		auto d=dur!"minutes"(cast(int) (dt*60));
+		auto r=View(at-d, v);
+		r.v.shift(dt);
+stderr.writeln("shift ",d,": ",at," -> ",r.at,": ",start," -> ",r.start,", ",end," -> ",r.end);
+		return r;
+	}
 }
 
 
 
-View normalize(View v)
+void normalize(ref View v)
 {
 	auto scale=v.v(v.end);
-	return View(v.at, v.v*scale);
+	v.v/=scale;
 }
 
 
-View smooth(View v, double dx)
+void smooth(ref View v, double dx)
 {
 	double[] x,y;
 	x~=v.start;
@@ -36,22 +44,24 @@ View smooth(View v, double dx)
 	}
 	x~=v.end;
 	y~=v.v(v.end);
-	return View(v.at,spline(x,y));
+	v.v=spline(x,y);
 }
 
-View slice(View v, double x1, double x2)
+View slice(ref View v, double x1, double x2, double dt)
 {
-	return View(v.at, v.v.slice(x1,x2));
+	return View(v.at, v.v.slice(x1,x2,dt));
 }
 
-View slice(View src, View target)
+View slice(View src, View target, double dt)
 {
 	return View(
 		  target.at
-		, src.v.slice(target.start, target.end)
+		, src.slice(target.start, target.end, dt)
 			.shift(hr(target.at, src.at))
+			.v
 		);
 }
+
 
 double hr(DateTime start, DateTime end)
 {

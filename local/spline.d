@@ -15,7 +15,7 @@ Spline!T spline(T)(const ref Spline!T rh)
 
 struct Spline(T)
 {
-	private immutable ulong N;
+	private ulong N;
 	private T[] X,A,B,C,D;
 
 	@property T min() const { return X[0]; }
@@ -28,6 +28,7 @@ struct Spline(T)
 		auto h=x-X[i];
 		return A[i]+h*(B[i]+h*(C[i]+h*D[i]));
 	}
+
 	void opOpAssign(string op)(T sc)
 	{
 		static if(op == "*") {
@@ -102,6 +103,18 @@ struct Spline(T)
 		this.B=rh.B.dup;
 		this.C=rh.C.dup;
 		this.D=rh.D.dup;
+	}
+
+	Spline!T slice(T x1, T x2, T dx)
+	{
+		T[] x,y;
+		for(auto t=x1; t <= x2; t+=dx) { x~=t; y~=opCall(t); }
+		return spline(x,y);
+	}
+
+	void shift(T dx) {
+		foreach(i; 0..N+1)
+			X[i]+=dx;
 	}
 }
 

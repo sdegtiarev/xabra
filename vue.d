@@ -273,25 +273,30 @@ writeln(cast(uint) (diff(view, av)*100)," ",id);
 Post total(T)(T data)
 if(is(ForeachType!T == Post))
 {
-	Post.Stat[DateTime] heap;
+	int[DateTime] heap;
+	uint[DateTime] n;
 	foreach(post; data) {
 		auto stat=post._stat;
 		foreach(i; 0..post.length-1) {
-			auto t0=stat[i].ts, t1=stat[i+1].ts;
-			if(t0 !in heap)
-				heap[t0]=Post.Stat(t0);
-			heap[t0].view+=stat[i+1].view-stat[i].view;
-			heap[t0].mark+=stat[i+1].mark-stat[i].mark;
-			heap[t0].comm+=stat[i+1].comm-stat[i].comm;
+			auto t0=stat[i].ts;
+			if(t0 !in heap) {
+				heap[t0]=0;
+				n[t0]=0;
+			}
+			heap[t0]+=stat[i+1].view-stat[i].view;
+			++n[t0];
 		}
 	}
 
 	Post total;
-	foreach(ts; heap.keys.sort)
-		total.add(heap[ts]);
+	foreach(ts; heap.keys.sort) {
+		heap[ts]/=n[ts];
+		total.add(ts, heap[ts], 0, 0, 1);
+	}
 writeln("raw total");
-foreach(st; total._stat)
-writeln(hr(DateTime(total.begin.date),st.ts)," ",st.view);
+foreach(ts; heap.keys.sort)
+writeln(hr(DateTime(total.begin.date),ts)," ",heap[ts]);
+
 	foreach(i; 1..total._stat.length)
 		total._stat[i].view+=total._stat[i-1].view;
 	total._at=DateTime(total.begin.date);
