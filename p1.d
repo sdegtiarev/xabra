@@ -39,12 +39,12 @@ void main(string[] arg)
 	foreach(raw; data)
 	{
 		if(raw.start > 30) continue;
-stderr.writeln(raw.end, " minutes");
 		if(raw.end < 1440) continue;
 		auto post=raw.compress;
+		double scale=post.stat.back.view;
 		writeln("post ", post.id, " ", post.at.timeOfDay);
 		foreach(st; post.range)
-			writeln(st[0]/60.," ",st[1]);
+			writeln(st[0]/60.," ",st[1]/scale);
 		//writeln("raw data");
 		//foreach(st; raw.range)
 		//	writeln(st[0]/60.," ",st[1]);
