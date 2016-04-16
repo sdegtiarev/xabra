@@ -29,6 +29,17 @@ struct Spline(T)
 		return A[i]+h*(B[i]+h*(C[i]+h*D[i]));
 	}
 
+	Spline opBinary(string op)(double scale)
+	{
+		auto r=this;
+		static if(op == "*") {
+			r*=scale;
+		} else static if(op == "/") {
+			r/=scale;
+		}
+		return r;
+	}
+
 	void opOpAssign(string op)(T sc)
 	{
 		static if(op == "*") {
@@ -112,9 +123,11 @@ struct Spline(T)
 		return spline(x,y);
 	}
 
-	void shift(T dx) {
+	Spline shift(T dx) {
+		auto r=this;
 		foreach(i; 0..N+1)
-			X[i]+=dx;
+			r.X[i]+=dx;
+		return r;
 	}
 }
 

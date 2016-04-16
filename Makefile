@@ -9,8 +9,8 @@ all: vue p1
 vue: vue.d local/getopt.d local/spline.d
 	dmd -g vue local/spline.d local/getopt.d
 
-p1: p1.d post.d view.d local/getopt.d 
-	dmd -g p1 post.d view.d local/getopt.d
+p1: p1.d post.d view.d local/getopt.d  local/spline.d
+	dmd -g p1 post.d view.d local/getopt.d local/spline.d
 
 
 clean:

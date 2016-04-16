@@ -21,7 +21,7 @@ struct View
 View normalize(View v)
 {
 	auto scale=v.v(v.end);
-	return View(v.at, v.v*scale);
+	return View(v.at, v.v/scale);
 }
 
 
@@ -41,14 +41,14 @@ View smooth(View v, double dx)
 
 View slice(View v, double x1, double x2)
 {
-	return View(v.at, v.v.slice(x1,x2));
+	return View(v.at, v.v.slice(x1, x2, .5));
 }
 
 View slice(View src, View target)
 {
 	return View(
 		  target.at
-		, src.v.slice(target.start, target.end)
+		, src.v.slice(target.start, target.end, .5)
 			.shift(hr(target.at, src.at))
 		);
 }
