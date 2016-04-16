@@ -59,6 +59,10 @@ struct Post
 		}
 		return r;
 	}
+
+	Post rebase(in Post to) {
+		return Post(id,to.at,stat);
+	}
 }
 
 Post[uint] parse(File fd)
