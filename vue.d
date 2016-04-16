@@ -88,7 +88,7 @@ struct View
 
 	@property float start() const { return v.min; }
 	@property float end()   const { return v.max; }
-	float opCall(float t)   const { return v.der1(t); }
+	float opCall(float t)   const { return v.D1(t); }
 
 	View smooth(float dx) {
 		float[] x,y;

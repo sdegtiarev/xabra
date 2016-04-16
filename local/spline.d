@@ -29,9 +29,10 @@ struct Spline(T)
 		return A[i]+h*(B[i]+h*(C[i]+h*D[i]));
 	}
 
-	Spline opBinary(string op)(double scale)
+	Spline opBinary(string op)(double scale) const
 	{
-		auto r=this;
+		//auto r=Spline(N, X.dup, A.dup, B.dup, C.dup, D.dup);
+		auto r=Spline(this);
 		static if(op == "*") {
 			r*=scale;
 		} else static if(op == "/") {
@@ -49,7 +50,7 @@ struct Spline(T)
 		}
 	}
 
-	T der1(T x) const {
+	T D1(T x) const {
 		enforce((x+1e-6) >= min && (x-1e-6) <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
@@ -58,7 +59,7 @@ struct Spline(T)
 		return B[i]+h*(2*C[i]+h*3*D[i]);
 	}
 
-	T der2(T x) const {
+	T D2(T x) const {
 		enforce((x+1e-6) >= min && (x-1e-6) <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
 		size_t i;
 		for(i=N-1; i > 0 && x < X[i]; --i) {}
@@ -67,6 +68,21 @@ struct Spline(T)
 		return 2*(C[i]+h*3*D[i]);
 	}
 	
+	T S(T x) const {
+		enforce((x+1e-6) >= min && (x-1e-6) <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
+		T s=0;
+		size_t i;
+		for(i=0; i < N && x > X[i+1]; ++i) {
+			auto h=X[i+1]-X[i];
+			s+=h*(A[i]+h*(B[i]/2+h*(C[i]/3+h*D[i]/4)));
+		}
+		if(i < N) {
+			auto h=x-X[i];
+			s+=h*(A[i]+h*(B[i]/2+h*(C[i]/3+h*D[i]/4)));
+		}
+		return s;
+	}
+
 
 	this(const(T)[] x, const(T)[] y)
 	{

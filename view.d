@@ -12,17 +12,26 @@ struct View
 
 	@property double start() const { return v.min; }
 	@property double end()   const { return v.max; }
-	double opCall(double t)   const { return v.der1(t); }
+	double opCall(double t)   const { return v.D1(t); }
 	double value(double t)   const { return v(t); }
+	
+	View normalize() const
+	{
+		auto scale=v(end);
+		return View(at, v/scale);
+	}
+
+	View smooth(double dt) {
+		double[] x,y;
+		x~=start; y~=v(start);
+		for(auto t=start+dt/2; t < end; t+=dt) { x~=t; y~=v(t); }
+		x~=end; y~=v(end);
+		return View(at, spline(x,y));
+	}
 }
 
 
 
-View normalize(View v)
-{
-	auto scale=v.v(v.end);
-	return View(v.at, v.v/scale);
-}
 
 
 View smooth(View v, double dx)

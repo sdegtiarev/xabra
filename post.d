@@ -7,8 +7,8 @@ import std.traits;
 import std.typecons;
 import std.exception;;
 import local.spline;
+import view;
 import core.stdc.math;
-import std.range;
 import std.stdio;
 
 
@@ -62,6 +62,16 @@ struct Post
 
 	Post rebase(in Post to) {
 		return Post(id,to.at,stat);
+	}
+
+	View view() {
+		double[] x,y;
+		double scale=stat.back.view;
+		foreach(s; stat) {
+			x~=(s.ts-at).total!"minutes"/60.;
+			y~=s.view/scale;
+		}
+		return View(at, spline(x,y));
 	}
 }
 

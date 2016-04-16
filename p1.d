@@ -1,5 +1,7 @@
 import post;
 import local.getopt;
+import local.spline;
+import view;
 import std.array;
 import std.datetime;
 import std.algorithm;
@@ -72,7 +74,15 @@ void main(string[] arg)
 	double scale=total.stat.back.view;
 	foreach(st; total.compress.range)
 		writeln(st[0]/60.," ",st[1]/scale);
-
+	writeln("pulse");
+	auto tv=total.compress.view.smooth(1).normalize;
+	for(double t=tv.start; t <= tv.end; t+=.1)
+		writeln(t," ", tv(t)*20);
+double w=0;
+uint nw=0;
+for(auto t=tv.start; t <= tv.end; t+=.1) { w+=tv(t); ++nw; }
+w/=nw;
+stderr.writeln("weight ",w);
 
 	foreach(raw; data)
 	{
@@ -83,6 +93,33 @@ void main(string[] arg)
 		writeln("post ", post.id, " ", post.at);
 		foreach(st; post.rebase(total).range)
 			writeln(st[0]/60.," ",st[1]/scale);
+
+		writeln("view");
+		auto pv=post.rebase(total).view.normalize;
+		for(double t=pv.start; t <= pv.end; t+=.1)
+			writeln(t," ", pv(t)*6);
+
+		writeln("integrated");
+		double[] x,y;
+		for(double t=pv.start; t <= pv.end; t+=.1) {
+			x~=t;
+			y~=pv(t)/(tv(t)+w/20);
+		}
+		auto iv=View(pv.at, spline(x,y));
+		scale=iv.v.S(iv.end);
+		for(double t=iv.start; t <= iv.end; t+=.1)
+			writeln(t," ", iv.v.S(t)/scale);
+
+		writeln("weighted");
+		double[] xw,yw;
+		for(double t=iv.start; t <= iv.end; t+=.1) {
+			xw~=t;
+			yw~=iv.v.S(t)/scale;
+		}
+		auto wv=View(pv.at, spline(xw,yw));
+		for(double t=wv.start; t <= wv.end; t+=.1)
+			writeln(t," ", wv(t)*6);
+
 	}
 
 }
