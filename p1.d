@@ -5,10 +5,12 @@ import view;
 import std.array;
 import std.datetime;
 import std.algorithm;
+import std.math;
 import std.traits;
 import std.stdio;
 
-immutable bool STAGE1=true;
+immutable bool STAGE1=false;
+immutable bool STAGE2=true;
 
 void main(string[] arg)
 {
@@ -28,11 +30,11 @@ void main(string[] arg)
 		fd.open(arg[1], "r");
 
 	Post[uint] data, all=parse(fd);
-	// get rid of post tails
-	foreach(id; all.keys) {
-		if(all[id].start > 30)
-			all.remove(id);
-	}
+	//// get rid of post tails
+	//foreach(id; all.keys) {
+	//	if(all[id].start > 30)
+	//		all.remove(id);
+	//}
 	// select posts according to command line list
 	if(post_id.empty) {
 		data=all;
@@ -81,6 +83,52 @@ void main(string[] arg)
 
 		}
 	}
+
+	if(STAGE2) {
+		writeln("total views");
+		foreach(v; tv.S(.1)) {
+			if(v.x > 100) break;
+			writeln(v.x," ", v.y);
+		}
+		writeln();
+		foreach(v; tv.range(.1)) {
+			if(v.x > 100) break;
+			writeln(v.x," ", v.y*20);
+		}
+
+		// average weight
+		uint n=0;
+		double w=0;
+		foreach(v; tv.range(.5)) { w+=v.y; ++n; }
+		tv.v/=w/n;
+
+		foreach(raw; data.values.sort!byAt) {
+			auto post=raw.rebase(total).compress.view.normalize;
+			//writeln("at ", raw.at," views ",raw.max);
+			writefln("tension %-5.2s",post.tension);
+			foreach(v; post.S(.1))
+				writeln(v.x," ", v.y);
+
+			writefln("tension %-5.2s",weight(post, tv, .0).tension);
+			foreach(v; weight(post, tv, .0).S(.1))
+				writeln(v.x," ", v.y);
+
+			writefln("tension %-5.2s",weight(post, tv, .2).tension);
+			foreach(v; weight(post, tv, .2).S(.1))
+				writeln(v.x," ", v.y);
+
+			writefln("tension %-5.2s",weight(post, tv, .4).tension);
+			foreach(v; weight(post, tv, .4).S(.1))
+				writeln(v.x," ", v.y);
+
+			writefln("tension %-5.2s",weight(post, tv, .6).tension);
+			foreach(v; weight(post, tv, .6).S(.1))
+				writeln(v.x," ", v.y);
+		}
+
+	}
+
+
 /*
 		writeln("view");
 		auto pv=post.rebase(total).view.normalize;
@@ -144,3 +192,22 @@ if(is(ForeachType!T == Post))
 	}
 	return pulse.compress;
 }
+
+View weight(View post, View wgt, double reg)
+{
+	double[] x,y;
+	foreach(v; post.range(1)) { x~=v.x; y~=v.y/(wgt(v.x)+reg); }
+	return View(post.at, spline(x,y).S).normalize;
+}
+
+
+double tension(View post)
+{
+	uint n=0;
+	double s=0;
+	foreach(v; post.smooth(4).v.D2.range(1)) { ++n; s+=v.y*v.y; }
+	return sqrt(s/n)/post(post.end);
+}
+
+
+
