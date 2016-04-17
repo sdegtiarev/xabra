@@ -8,6 +8,7 @@ import std.algorithm;
 import std.traits;
 import std.stdio;
 
+immutable bool STAGE1=true;
 
 void main(string[] arg)
 {
@@ -53,32 +54,33 @@ void main(string[] arg)
 	Post total=pulse(all.values);
 	auto tv=total.view.normalize;
 
-	writeln("total views");
-	foreach(v; tv.S(.1)) {
-		if(v.x > 100) break;
-		writeln(v.x," ", v.y);
-	}
-	writeln("habapulse");
-	foreach(v; tv.range(.1)) {
-		if(v.x > 100) break;
-		writeln(v.x," ", v.y*20);
-	}
-
-	foreach(raw; data.values.sort!byAt)
+	if(STAGE1) 
 	{
-		if(raw.start > 30) continue;
-		if(raw.end < 1440) continue;
-		auto post=raw.rebase(total).compress.view.normalize;
-		writeln("at ", raw.at);
-		foreach(v; post.S(.1))
+		writeln("total views");
+		foreach(v; tv.S(.1)) {
+			if(v.x > 100) break;
 			writeln(v.x," ", v.y);
+		}
+		writeln("habapulse");
+		foreach(v; tv.range(.1)) {
+			if(v.x > 100) break;
+			writeln(v.x," ", v.y*20);
+		}
 
-		writeln();
-		foreach(v; post.range(.1))
-			writeln(v.x," ", v.y);
+		foreach(raw; data.values.sort!byAt) {
+			if(raw.start > 30) continue;
+			if(raw.end < 1440) continue;
+			auto post=raw.rebase(total).compress.view.normalize;
+			writeln("at ", raw.at);
+			foreach(v; post.S(.1))
+				writeln(v.x," ", v.y);
 
+			writeln();
+			foreach(v; post.range(.1))
+				writeln(v.x," ", v.y);
 
-		continue;
+		}
+	}
 /*
 		writeln("view");
 		auto pv=post.rebase(total).view.normalize;
@@ -106,7 +108,6 @@ void main(string[] arg)
 		for(double t=wv.start; t <= wv.end; t+=.1)
 			writeln(t," ", wv(t)*6);
 */
-	}
 
 }
 
