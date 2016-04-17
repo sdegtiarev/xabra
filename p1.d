@@ -5,6 +5,7 @@ import view;
 import std.array;
 import std.datetime;
 import std.algorithm;
+import std.traits;
 import std.stdio;
 
 
@@ -49,56 +50,34 @@ void main(string[] arg)
 		}
 	}
 
-	// find sum of all post views
-	DateTime at=all.values.front.at;
-	Post.Stat[DateTime] heap;
-	// sum all view INCREMENTS int assoc.array by time
-	foreach(id; all.keys) {
-		uint last=0;
-		at=min(at, all[id].at);
-		foreach(stat; all[id].stat) {
-			if(stat.ts !in heap)
-				heap[stat.ts]=Post.Stat(stat.ts);
-			heap[stat.ts].view+=stat.view-last;
-			last=stat.view;
-		}
-	}
-	// convert the array into Post.Stat[] array
-	auto total=Post(0, at);
-	foreach(ts; heap.keys.sort)
-		total.add(heap[ts]);
-	// convert view increments back to integral views
-	uint last=0;
-	foreach(ref stat; total.stat) {
-		stat.view+=last;
-		last=stat.view;
-	}
-	total=total.compress;
-
-	//writeln("total ", total.at);
-	//foreach(st; total.range)
-	//	writeln(st[0]/60.," ",st[1]);
-	//writeln();
-	//foreach(v; total.view.range(.1))
-	//	writeln(v.x," ", v.y*10);
-	
-	writeln("total ", total.at);
+	Post total=pulse(all.values);
 	auto tv=total.view.normalize;
-	writeln();
-	foreach(v; tv.S(.1))
-		writeln(v.x," ", v.y);
-	writeln();
-	foreach(v; tv.range(.1))
-		writeln(v.x," ", v.y*10);
 
-	foreach(raw; data)
+	writeln("total views");
+	foreach(v; tv.S(.1)) {
+		if(v.x > 100) break;
+		writeln(v.x," ", v.y);
+	}
+	writeln("habapulse");
+	foreach(v; tv.range(.1)) {
+		if(v.x > 100) break;
+		writeln(v.x," ", v.y*20);
+	}
+
+	foreach(raw; data.values.sort!byAt)
 	{
 		if(raw.start > 30) continue;
 		if(raw.end < 1440) continue;
 		auto post=raw.rebase(total).compress.view.normalize;
-		writeln("post ", raw.id, " ", post.at);
+		writeln("at ", raw.at);
 		foreach(v; post.S(.1))
 			writeln(v.x," ", v.y);
+
+		writeln();
+		foreach(v; post.range(.1))
+			writeln(v.x," ", v.y);
+
+
 		continue;
 /*
 		writeln("view");
@@ -129,4 +108,38 @@ void main(string[] arg)
 */
 	}
 
+}
+
+
+Post pulse(T)(T data)
+if(is(ForeachType!T == Post))
+{
+	// find sum of all post views
+	DateTime at=data.front.at;
+
+	Post.Stat[DateTime] heap;
+	// sum all post INCREMENTS into assoc.array indexed by time
+	foreach(post; data) {
+		uint last=0;
+		at=min(at, post.at);
+		foreach(stat; post.stat) {
+			if(stat.ts !in heap)
+				heap[stat.ts]=Post.Stat(stat.ts);
+			heap[stat.ts].view+=stat.view-last;
+			last=stat.view;
+		}
+	}
+
+	// convert the array into Post.Stat[] array
+	auto pulse=Post(0, at);
+	foreach(ts; heap.keys.sort)
+		pulse.add(heap[ts]);
+
+	// convert view increments back to integral views
+	uint last=0;
+	foreach(ref stat; pulse.stat) {
+		stat.view+=last;
+		last=stat.view;
+	}
+	return pulse.compress;
 }
