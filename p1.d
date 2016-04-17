@@ -28,8 +28,8 @@ void main(string[] arg)
 	Post[uint] data, all=parse(fd);
 	// get rid of post tails
 	foreach(id; all.keys) {
-		if(all[id].start < 30)
-			data.remove(id);
+		if(all[id].start > 30)
+			all.remove(id);
 	}
 	// select posts according to command line list
 	if(post_id.empty) {
@@ -40,8 +40,12 @@ void main(string[] arg)
 			foreach(id; post_id)
 				data.remove(id);
 		} else {
-			foreach(id; post_id)
-				data[id]=all[id];
+			foreach(id; post_id) {
+				if(id in all)
+					data[id]=all[id];
+				else
+					stderr.writeln("post ",id," ignored");
+			}
 		}
 	}
 
@@ -69,31 +73,34 @@ void main(string[] arg)
 		stat.view+=last;
 		last=stat.view;
 	}
+	total=total.compress;
 
-	writeln("total ", total.at," +",total.start);
-	double scale=total.stat.back.view;
-	foreach(st; total.compress.range)
-		writeln(st[0]/60.," ",st[1]/scale);
-	writeln("pulse");
-	auto tv=total.compress.view.smooth(1).normalize;
-	for(double t=tv.start; t <= tv.end; t+=.1)
-		writeln(t," ", tv(t)*20);
-double w=0;
-uint nw=0;
-for(auto t=tv.start; t <= tv.end; t+=.1) { w+=tv(t); ++nw; }
-w/=nw;
-stderr.writeln("weight ",w);
+	//writeln("total ", total.at);
+	//foreach(st; total.range)
+	//	writeln(st[0]/60.," ",st[1]);
+	//writeln();
+	//foreach(v; total.view.range(.1))
+	//	writeln(v.x," ", v.y*10);
+	
+	writeln("total ", total.at);
+	auto tv=total.view.normalize;
+	writeln();
+	foreach(v; tv.S(.1))
+		writeln(v.x," ", v.y);
+	writeln();
+	foreach(v; tv.range(.1))
+		writeln(v.x," ", v.y*10);
 
 	foreach(raw; data)
 	{
 		if(raw.start > 30) continue;
 		if(raw.end < 1440) continue;
-		auto post=raw.compress;
-		double scale=post.stat.back.view;
-		writeln("post ", post.id, " ", post.at);
-		foreach(st; post.rebase(total).range)
-			writeln(st[0]/60.," ",st[1]/scale);
-
+		auto post=raw.rebase(total).compress.view.normalize;
+		writeln("post ", raw.id, " ", post.at);
+		foreach(v; post.S(.1))
+			writeln(v.x," ", v.y);
+		continue;
+/*
 		writeln("view");
 		auto pv=post.rebase(total).view.normalize;
 		for(double t=pv.start; t <= pv.end; t+=.1)
@@ -119,7 +126,7 @@ stderr.writeln("weight ",w);
 		auto wv=View(pv.at, spline(xw,yw));
 		for(double t=wv.start; t <= wv.end; t+=.1)
 			writeln(t," ", wv(t)*6);
-
+*/
 	}
 
 }

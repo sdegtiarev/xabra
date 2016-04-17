@@ -1,12 +1,30 @@
 module local.spline;
 import std.exception;
+import std.typecons;
 import std.conv;
+import std.stdio;
 
 
 Spline!T spline(T)(const(T[]) x, const(T[]) y)
 {
 	return Spline!T(x,y);
 }
+Delta!T delta(T)(T x, T dx)
+{
+	return Delta!T(x,dx);
+}
+
+
+
+struct Delta(T)
+{
+	private T x, dx;
+
+	@property bool empty() const { return false; }
+	T front() const { return x; }
+	void popFront() { x+=dx; }
+}
+
 
 Spline!T spline(T)(const ref Spline!T rh)
 {
@@ -31,7 +49,6 @@ struct Spline(T)
 
 	Spline opBinary(string op)(double scale) const
 	{
-		//auto r=Spline(N, X.dup, A.dup, B.dup, C.dup, D.dup);
 		auto r=Spline(this);
 		static if(op == "*") {
 			r*=scale;
@@ -44,9 +61,9 @@ struct Spline(T)
 	void opOpAssign(string op)(T sc)
 	{
 		static if(op == "*") {
-			foreach(i; 0..N) { A[i]*=sc; B[i]*=sc; C[i]*=sc; D[i]*=sc; }
+			foreach(i; 0..N+1) { A[i]*=sc; B[i]*=sc; C[i]*=sc; D[i]*=sc; }
 		} else static if(op == "/") {
-			foreach(i; 0..N) { A[i]/=sc; B[i]/=sc; C[i]/=sc; D[i]/=sc; }
+			foreach(i; 0..N+1) { A[i]/=sc; B[i]/=sc; C[i]/=sc; D[i]/=sc; }
 		}
 	}
 
@@ -58,6 +75,9 @@ struct Spline(T)
 		auto h=x-X[i];
 		return B[i]+h*(2*C[i]+h*3*D[i]);
 	}
+	Spline D1() const {
+		return spline(X,B);
+	}
 
 	T D2(T x) const {
 		enforce((x+1e-6) >= min && (x-1e-6) <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
@@ -67,7 +87,21 @@ struct Spline(T)
 		auto h=x-X[i];
 		return 2*(C[i]+h*3*D[i]);
 	}
+	Spline D2() const {
+		return spline(X,C);
+	}
 	
+	Spline S() const {
+		T[] F;
+		T value=0;
+		F~=value;
+		foreach(i; 0..N) {
+			T h=X[i+1]-X[i];
+			value+=h*(A[i]+h*(B[i]/2+h*(C[i]/3+h*D[i]/4)));
+			F~=value;
+		}
+		return spline(X,F);
+	}
 	T S(T x) const {
 		enforce((x+1e-6) >= min && (x-1e-6) <= max, "spline argument "~to!string(x)~" is out of range ["~to!string(min)~", "~to!string(max)~"]");
 		T s=0;
@@ -90,8 +124,7 @@ struct Spline(T)
 		X=x.dup;
 		A=y.dup;
 		N=x.length-1;
-		C.length=N+1;
-		B.length=D.length=N;
+		C.length=B.length=D.length=N+1;
 
 		T[] p,u,d;
 		p.length=u.length=d.length=N;
@@ -121,6 +154,9 @@ struct Spline(T)
 			D[i]=(C[i+1]-C[i])/h/3;
 			B[i]=(A[i+1]-A[i])/h-h*(C[i]+h*D[i]);
 		}
+		auto h=X[N]-X[N-1];
+		B[N]=B[N-1]+h*(2*C[N-1]+3*h*D[N-1]);
+		D[N]=0;//???
 	}
 
 	this(const ref Spline!T rh) {
@@ -144,6 +180,22 @@ struct Spline(T)
 		foreach(i; 0..N+1)
 			r.X[i]+=dx;
 		return r;
+	}
+
+	Range range(T dx) { return Range(this, dx); }
+	private struct Range
+	{
+		private const Spline s;
+		private T x, dx;
+
+		this(ref const Spline s, T dx) {
+			this.s=s;
+			this.x=s.min;
+			this.dx=dx;
+		}
+		bool empty() const { return x > s.max; }
+		auto front() { return tuple!("x","y")(x, s(x)); }
+		void popFront() { x+=dx; }
 	}
 }
 

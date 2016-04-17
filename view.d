@@ -14,6 +14,9 @@ struct View
 	@property double end()   const { return v.max; }
 	double opCall(double t)   const { return v.D1(t); }
 	double value(double t)   const { return v(t); }
+
+	auto range(double dt) { return v.D1.range(dt); }
+	auto S(double dt) { return v.range(dt); }
 	
 	View normalize() const
 	{

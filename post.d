@@ -47,7 +47,12 @@ struct Post
 		stat~=s;
 	}
 
-	auto range() { return zip(stat.map!(a => (a.ts-at).total!"minutes"), stat.map!(a => a.view)); }
+	auto range() {
+		return zip(stat.map!(
+			  a => (a.ts-at).total!"minutes")
+			, stat.map!(a => a.view)
+		);
+	}
 
 	Post compress() {
 		auto r=Post(id,at);
@@ -66,10 +71,9 @@ struct Post
 
 	View view() {
 		double[] x,y;
-		double scale=stat.back.view;
 		foreach(s; stat) {
 			x~=(s.ts-at).total!"minutes"/60.;
-			y~=s.view/scale;
+			y~=s.view;
 		}
 		return View(at, spline(x,y));
 	}
