@@ -8,108 +8,11 @@ import std.datetime;
 import std.traits;
 import std.typecons;
 import std.exception;;
+import core.stdc.math;
 import local.getopt;
 import local.spline;
-import core.stdc.math;
-
-struct Post
-{
-	uint _id;
-	DateTime _at;
-	Stat[] _stat;
-
-	struct Stat
-	{
-		DateTime ts;
-		uint view, mark, comm, pos;
-	}
-
-	@property auto id() const { return _id; }
-	@property auto empty() const { return _stat.empty; }
-	@property auto length() const { return _stat.length; }
-	@property auto at() const { return _at; }
-	@property auto begin() const { return _stat.front.ts; }
-	@property auto start() const { return hr(at, _stat.front.ts); }
-	@property auto end() const { return hr(at, _stat.back.ts); }
-	@property auto max() const { return _stat.back.view; }
-
-	static bool byId(Post a, Post b) { return a.id < b.id; }
-	static bool byAt(Post a, Post b) { return a.at < b.at; }
-	static bool byStart(Post a, Post b) { return a.start < b.start; }
-	static bool byEnd(Post a, Post b) { return a.end < b.end; }
-	static bool byLength(Post a, Post b) { return a.length < b.length; }
-
-
-	void add(DateTime t, uint v, uint m, uint c, uint p)
-	{
-		_stat~=Stat(t,v,m,c,p);
-	}
-	void add(Stat s)
-	{
-		_stat~=s;
-	}
-
-	string toString() {
-		return to!string(this.id)~" "~to!string(this.at)~" "~to!string(this.length);
-	}
-
-	View view() const
-	{
-		float[] vx,vy;
-		foreach(stat; _stat) {
-			if(!vy.empty && stat.view == vy.back)
-				continue;
-			vx~=hr(at,stat.ts);
-			vy~=stat.view;
-		}
-		return View(at, spline(vx,vy));
-	}
-	View norm() const
-	{
-		float[] vx,vy;
-		float max=_stat.back.view, last;
-		foreach(stat; _stat) {
-			if(!vy.empty && stat.view == last)
-				continue;
-			vx~=hr(at,stat.ts);
-			vy~=stat.view/max;
-			last=stat.view;
-		}
-		return View(at, spline(vx,vy));
-	}
-}
-
-struct View
-{
-	DateTime at;
-	Spline!float v;
-
-	this(DateTime at, Spline!float sp) { this.at=at; this.v=sp; }
-
-	@property float start() const { return v.min; }
-	@property float end()   const { return v.max; }
-	float opCall(float t)   const { return v.D1(t); }
-
-	View smooth(float dx) {
-		float[] x,y;
-		x~=v.min;
-		y~=v(v.min);
-		for(float t=v.min+dx/2; t < (v.max-dx/2); t+=dx) {
-			x~=t;
-			y~=(v(t-dx/2)+v(t)+v(t+dx/2))/3;
-		}
-		x~=v.max;
-		y~=v(v.max);
-		return View(at,spline!float(x,y));
-	}
-	View norm() const
-	{
-		float scale=v(v.max);
-		auto s=spline(v);
-		s/=scale;
-		return View(at, s);
-	}
-}
+import post;
+import view;
 
 
 
@@ -128,19 +31,20 @@ try {
 	Option[] opt;
 	getopt(opt, arg //,noThrow.yes
 		, "-p|--post", "post id's to analyze", &post_id
+		, "-x|--exclude", "invert post id's list", &invert
 		, "-l|--list", "list posts", &list, true
 		, "-t|--total", "display sum of all views", &show_total, true
-		, "-v|--view", "post views", delegate { mode=Mode.view; }
-		, "-a|--all", "views summary", delegate { mode=Mode.all; }
-		, "-x", "testing", delegate { mode=Mode.exp; }
-		, "-f", delegate { mode=Mode.fit; }
-		, "-r|--raw", "post raw views", &raw
-		, "-p|--position", "post position", &position
-		, "--format", "list format", &fmt
-		, "--sort", "list sort field", &sort_fn
-		, "-n|--norm|--normalize", "normalize output", &normalize, true
-		, "-w|--weighted", &weighted
-		, "-i|--invert", &invert
+		//, "-v|--view", "show post view", delegate { mode=Mode.view; }
+		//, "-a|--all", "views summary", delegate { mode=Mode.all; }
+		//, "-x", "testing", delegate { mode=Mode.exp; }
+		//, "-f", delegate { mode=Mode.fit; }
+		//, "-r|--raw", "post raw views", &raw
+		//, "-p|--position", "post position", &position
+		//, "--format", "list format", &fmt
+		//, "--sort", "list sort field", &sort_fn
+		//, "-n|--norm|--normalize", "normalize output", &normalize, true
+		//, "-w|--weighted", &weighted
+		//, "-i|--invert", &invert
 
 		, "-h|-?|--help", "print this help", &help, true
 	);
@@ -157,21 +61,30 @@ try {
 	else
 		fd.open(arg[1], "r");
 
-	auto data=parse(fd);
-	if(!post_id.empty) {
+	Post[uint] data, all=parse(fd);
+	if(post_id.empty) {
+		data=all;
+	} else {
 		if(invert) {
+			data=all;
 			foreach(id; post_id)
 				data.remove(id);
 		} else {
-			Post[uint] inv=data.dup;
-			foreach(id; post_id)
-				inv.remove(id);
-			foreach(id; keys(inv))
-				data.remove(id);
+			foreach(id; post_id) {
+				if(id in all)
+					data[id]=all[id];
+				else
+					stderr.writeln("post ",id," ignored");
+			}
 		}
 	}
 
+	Post total=pulse(all.values);
+	auto tv=total.view.normalize;
+	foreach(v; tv.range(.1))
+			writeln(v.x," ", v.y*20);
 
+/+
 	// list posts
 	if(list) {
 		if(fmt.empty)
@@ -260,7 +173,7 @@ writeln(cast(uint) (diff(view, av)*100)," ",id);
 		}
 	}
 
-
++/
 
 
 
@@ -268,6 +181,45 @@ writeln(cast(uint) (diff(view, av)*100)," ",id);
 	writefln(x.msg);
 }
 }
+
+
+
+
+Post pulse(T)(T data)
+if(is(ForeachType!T == Post))
+{
+	// find sum of all post views
+	DateTime at=data.front.at;
+
+	Post.Stat[DateTime] heap;
+	// sum all post INCREMENTS into assoc.array indexed by time
+	foreach(post; data) {
+		uint last=0;
+		at=min(at, post.at);
+		foreach(stat; post.stat) {
+			if(stat.ts !in heap)
+				heap[stat.ts]=Post.Stat(stat.ts);
+			heap[stat.ts].view+=stat.view-last;
+			last=stat.view;
+		}
+	}
+
+	// convert the array into Post.Stat[] array
+	auto pulse=Post(0, at);
+	foreach(ts; heap.keys.sort)
+		pulse.add(heap[ts]);
+
+	// convert view increments back to integral views
+	uint last=0;
+	foreach(ref stat; pulse.stat) {
+		stat.view+=last;
+		last=stat.view;
+	}
+	return pulse.compress;
+}
+
+
+
 
 
 Post total(T)(T data)
@@ -301,51 +253,6 @@ writeln(hr(DateTime(total.begin.date),st.ts)," ",st.view);
 
 
 
-
-Post[uint] parse(File fd)
-{
-	Post[uint] data;
-	uint[DateTime] position;
-	uint cnt=0;
-	scope(exit) fd.close();
-
-	foreach(line; fd.byLine) {
-	try {
-		++cnt;
-		auto p=parse(line);
-
-		if(p.ts !in position)
-			position[p.ts]=0;
-		++position[p.ts];
-
-		if(p.id !in data)
-			data[p.id]=Post(p.id, p.at);
-		data[p.id].add(p.ts, p.v, p.m, p.c, position[p.ts]);
-
-	} catch(Exception err) {
-		throw new Exception(("parse error at "~to!string(cnt)~": "~line).idup);
-	}
-	}
-
-	return data;
-}
-
-
-
-
-auto parse(char[] line)
-{
-	auto t=line.split;
-	enforce(t.length >= 6);
-	return tuple!("id","at","ts","v","m","c") (
-		  to!uint(t[1])
-		, DateTime.fromISOExtString(t[2])
-		, DateTime.fromISOExtString(t[0])
-		, to!uint(t[3])
-		, to!uint(t[4])
-		, to!uint(t[5])
-	);
-}
 
 
 float hr(DateTime start, DateTime end)
