@@ -9,16 +9,17 @@ import std.math;
 import std.traits;
 import std.stdio;
 
-immutable bool STAGE1=false;
-immutable bool STAGE2=true;
+
 
 void main(string[] arg)
 {
 	bool help, invert;
 	int[] post_id;
+	int STAGE=0;
 	getopt(arg
 		, "-p|--post", "post id's to analyze", &post_id
 		, "-i|--invert", "invert post list", &invert
+		, "--stage", &STAGE
 		, "-h|-?|--help", "print this help", &help, true
 	);
 
@@ -56,16 +57,16 @@ void main(string[] arg)
 	Post total=pulse(all.values);
 	auto tv=total.view.normalize;
 
-	if(STAGE1) 
+	if(STAGE == 1) 
 	{
 		writeln("total views");
 		foreach(v; tv.S(.1)) {
-			if(v.x > 100) break;
+			if(v.x > 150) break;
 			writeln(v.x," ", v.y);
 		}
 		writeln("habapulse");
 		foreach(v; tv.range(.1)) {
-			if(v.x > 100) break;
+			if(v.x > 150) break;
 			writeln(v.x," ", v.y*20);
 		}
 
@@ -84,15 +85,15 @@ void main(string[] arg)
 		}
 	}
 
-	if(STAGE2) {
+	if(STAGE == 2) {
 		writeln("total views");
 		foreach(v; tv.S(.1)) {
-			if(v.x > 100) break;
+			if(v.x > 150) break;
 			writeln(v.x," ", v.y);
 		}
 		writeln();
 		foreach(v; tv.range(.1)) {
-			if(v.x > 100) break;
+			if(v.x > 150) break;
 			writeln(v.x," ", v.y*20);
 		}
 
@@ -126,6 +127,101 @@ void main(string[] arg)
 				writeln(v.x," ", v.y);
 		}
 
+	}
+
+	if(STAGE == 3) {
+		writeln();
+		foreach(v; tv.range(.1)) {
+			if(v.x > 150) break;
+			writeln(v.x," ", v.y*20);
+		}
+
+		// average weight
+		uint n=0;
+		double w=0;
+		foreach(v; tv.range(.5)) { w+=v.y; ++n; }
+		tv.v/=w/n;
+
+		foreach(raw; data.values.sort!byAt) {
+			auto post=raw.rebase(total).compress.view.normalize;
+			writefln("tension %-5.2s",post.tension);
+			foreach(v; post.range(.1))
+				writeln(v.x," ", v.y);
+
+			writefln("tension %-5.2s",weight(post, tv, .0).tension);
+			foreach(v; weight(post, tv, .0).range(.1))
+				writeln(v.x," ", v.y);
+
+			writefln("tension %-5.2s",weight(post, tv, .3).tension);
+			foreach(v; weight(post, tv, .2).range(.1))
+				writeln(v.x," ", v.y);
+
+			writefln("tension %-5.2s",weight(post, tv, .6).tension);
+			foreach(v; weight(post, tv, .6).range(.1))
+				writeln(v.x," ", v.y);
+		}
+
+	}
+
+	if(STAGE == 4) {
+
+		// average weight
+		uint n=0;
+		double w=0;
+		foreach(v; tv.range(.5)) { w+=v.y; ++n; }
+		tv.v/=w/n;
+
+		foreach(raw; data.values.sort!byAt) {
+			auto post=raw.rebase(total).compress.view.normalize;
+			writeln();
+			foreach(v; post.v.D2.range(.1))
+				writeln(v.x," ", v.y);
+
+			auto p0=weight(post, tv.smooth(2), .0);
+			writeln();
+			foreach(v; p0.v.D2.range(.1))
+				writeln(v.x," ", v.y);
+
+			auto p2=weight(post, tv.smooth(2), .2);
+			writeln();
+			foreach(v; p2.v.D2.range(.1))
+				writeln(v.x," ", v.y);
+
+			auto p4=weight(post, tv.smooth(2), .4);
+			writeln();
+			foreach(v; p4.v.D2.range(.1))
+				writeln(v.x," ", v.y);
+
+			auto p6=weight(post, tv.smooth(2), .6);
+			writeln();
+			foreach(v; p6.v.D2.range(.1))
+				writeln(v.x," ", v.y);
+
+		}
+	}
+
+	if(STAGE == 5) {
+		writeln("total views");
+		foreach(v; tv.range(.1)) {
+			if(v.x > 150) break;
+			writeln(v.x," ", v.y*20);
+		}
+		auto stv=tv.smooth(1);
+
+		foreach(raw; data.values.sort!byAt) {
+			auto post=raw.rebase(total).compress.view.normalize;
+
+			double[] x,y;
+			foreach(v; post.S(.1)) { x~=v.x; y~=-log(1.1-v.y); }
+			auto lv=View(post.at, spline(x,y));
+
+			writeln();
+			foreach(v; lv.range(.1))
+				writeln(v.x," ", v.y);
+			writeln();
+			foreach(v; lv.range(.1))
+				writeln(v.x," ", v.y/(tv(v.x)+.001)/50);
+		}
 	}
 
 
@@ -196,7 +292,7 @@ if(is(ForeachType!T == Post))
 View weight(View post, View wgt, double reg)
 {
 	double[] x,y;
-	foreach(v; post.range(1)) { x~=v.x; y~=v.y/(wgt(v.x)+reg); }
+	foreach(v; post.range(.11)) { x~=v.x; y~=v.y/(wgt(v.x)+reg); }
 	return View(post.at, spline(x,y).S).normalize;
 }
 
