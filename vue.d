@@ -7,8 +7,8 @@ import std.algorithm;
 import std.datetime;
 import std.traits;
 import std.typecons;
+import std.math;
 import std.exception;;
-import core.stdc.math;
 import local.getopt;
 import local.spline;
 import post;
@@ -19,21 +19,35 @@ import view;
 void main(string[] arg)
 {
 try {
-	enum Field { id, length, at, start, end };
-	enum Mode { none, view, all, fit, exp };
+	enum Field { id, length, at, start, duration, views };
+	enum Mode { none, total, list, view, sum, raw };
 
 	int mid=0, cid=0, cm=0, raw, position;
+	bool log_scale, weighted;
+
 	int[] post_id;
-	bool list, show_total, help, log_scale, normalize, weighted, invert;
 	Mode mode;
 	Field[] fmt;
 	Field sort_fn=Field.id;
+	bool force_all, invert, average, normalize, weight, help;
+	double avg_interval=0;
+double FP=0;
 	Option[] opt;
 	getopt(opt, arg //,noThrow.yes
-		, "-p|--post", "post id's to analyze", &post_id
-		, "-x|--exclude", "invert post id's list", &invert
-		, "-l|--list", "list posts", &list, true
-		, "-t|--total", "display sum of all views", &show_total, true
+		, "-p|--post", "post id's to analyze. If not given, use entire file\nexcept truncated posts", &post_id
+		, "-x|--exclude", "invert post list, exclude given list from the\nentire set", &invert
+		, "-A|--all", "don't remove truncated posts", &force_all
+		, "-t|--total", "display sum of all views (habrapulse)", delegate { mode=Mode.total; }
+		, "-l|--list", "list posts according to the format or just post id's\nif empty", delegate { mode=Mode.list; }
+		, "--format", "list format", &fmt
+		, "--sort", "list sort field", &sort_fn
+		, "-v|--view", "display selected posts views", delegate { mode=Mode.view; }
+		, "-s|--sum", "sum selected posts views", delegate { mode=Mode.sum; }
+		, "-r|--raw", "raw post data", delegate { mode=Mode.raw; }
+		, "-S|--smooth", "average data on interval", delegate(double dt) { average=true; avg_interval=dt; }
+		, "-N|--normalize", "normalize data", &normalize
+		, "-W|--weight", "weight data", &weight
+		, "-F", &FP
 		//, "-v|--view", "show post view", delegate { mode=Mode.view; }
 		//, "-a|--all", "views summary", delegate { mode=Mode.all; }
 		//, "-x", "testing", delegate { mode=Mode.exp; }
@@ -41,7 +55,6 @@ try {
 		//, "-r|--raw", "post raw views", &raw
 		//, "-p|--position", "post position", &position
 		//, "--format", "list format", &fmt
-		//, "--sort", "list sort field", &sort_fn
 		//, "-n|--norm|--normalize", "normalize output", &normalize, true
 		//, "-w|--weighted", &weighted
 		//, "-i|--invert", &invert
@@ -50,8 +63,13 @@ try {
 	);
 	if(help) {
 		writeln("vue: analyze habrahabr statistics");
-		writeln("Syntax: vue [-t] [-l] [-h] <file>");
+		writeln("Syntax: vue [OPTIONS | -h] [<file>]");
+		writeln("  If no file given, read stdin");
 		writeln("Options:\n",optionHelp(sort!("a.group < b.group || a.group == b.group && a.tag < b.tag")(opt)));
+		writeln("Examples:");
+		writeln("  vue -t post.list");
+		writeln("  vue -txp100000,100013 post.list");
+		writeln("  vue -lA --format=at,id,duration,length --sort=at");
 		return;
 	}
 
@@ -63,7 +81,7 @@ try {
 
 	Post[uint] data, all=parse(fd);
 	if(post_id.empty) {
-		data=all;
+		data=all.dup;
 	} else {
 		if(invert) {
 			data=all;
@@ -78,15 +96,27 @@ try {
 			}
 		}
 	}
+	if(!force_all) {
+		foreach(post; data) {
+			if(post.start > 30 || post.end < 1440)
+				data.remove(post.id);
+		}
+	}
+	enforce(data.length, "no valid posts");
 
-	Post total=pulse(all.values);
-	auto tv=total.view.normalize;
-	foreach(v; tv.range(.1))
-			writeln(v.x," ", v.y*20);
 
-/+
-	// list posts
-	if(list) {
+	Post total=pulse(all.values).slice(data.values.interval);
+
+
+
+	if(mode == Mode.total) {
+		auto view=total.view;
+		if(average) view=view.smooth(avg_interval);
+		if(normalize) view=view.normalize;
+		foreach(v; view.range(.1))
+			writeln(v.x," ", v.y);
+	
+	} else if(mode == Mode.list) {
 		if(fmt.empty)
 			fmt~=Field.id;
 		auto cmp=&Post.byId;
@@ -94,8 +124,9 @@ try {
 			case Field.id: cmp=&Post.byId; break;
 			case Field.at: cmp=&Post.byAt; break;
 			case Field.start: cmp=&Post.byStart; break;
-			case Field.end: cmp=&Post.byEnd; break;
+			case Field.duration: cmp=&Post.byEnd; break;
 			case Field.length: cmp=&Post.byLength; break;
+			case Field.views: cmp=&Post.byViews; break;
 			default: assert(0);
 		}
 		foreach(post; data.byValue.array.sort!cmp) {
@@ -104,22 +135,90 @@ try {
 				case Field.id: write(post.id, " "); break;
 				case Field.at: write(post.at, " "); break;
 				case Field.start: write(post.start, " "); break;
-				case Field.end: write(post.end, " "); break;
+				case Field.duration: write(post.end, " "); break;
 				case Field.length: write(post.length, " "); break;
+				case Field.views: write(post.views, " "); break;
 				default: assert(0);
 			}
 			writeln();
 		}
+	
+	} else if(mode == Mode.view) {
+		foreach(post; data) {
+			View view;
+			if(weight) {
+				auto tv=total.view.smooth(4);
+				view=post.compress.weight(tv);
+			} else
+				view=post.compress.view;
+			if(average) view=view.smooth(avg_interval);
+			if(normalize) view=view.normalize;
+			writeln("post ",post.id," at ",post.at);
+			foreach(v; view.range(.1))
+				writeln(v.x," ", v.y);
+		}
+
+	} else if(mode == Mode.sum) {
+		immutable double dt=.3;
+		double[] x,y,w;
+		uint n[];
+		n.length=x.length=y.length=w.length=cast(uint) (200/dt);
+		y[]=w[]=0;
+		foreach(i; 0..x.length) x[i]=i*dt;
+		auto tv=total.view.smooth(4);
+		
+		foreach(post; data) {
+			auto view=post.compress.view;
+			if(normalize) view=view.normalize;
+			foreach(v; view.range(dt)) {
+				uint i=cast(uint) (v.x/dt);
+				assert(i >= 0, "negative index");
+				assert(i < n.length, "huge index");
+				++n[i];
+				y[i]+=v.y;
+				w[i]+=v.y/(tv(v.x)+FP);
+			}
+		}
+		ulong end=n.length;
+		while(n[end-1] == 0) --end;
+		n.length=x.length=y.length=w.length=end;
+		foreach(i; 0..n.length) {
+			y[i]/=n[i];
+			w[i]/=n[i];
+		}
+
+		auto sum=View(total.at, spline(x,y).S).normalize;
+		writeln("summary");
+		foreach(v; sum.range(.1))
+			writeln(v.x," ",v.y);
+		auto wgt=View(total.at, spline(x,w).S).normalize;
+		writeln("weighted");
+		foreach(v; wgt.range(.1))
+			writeln(v.x," ",v.y);
+
+
+
+	} else if(mode == Mode.raw) {
+		foreach(post; data) {
+			auto view=post.compress.view;
+			if(average) view=view.smooth(avg_interval);
+			writeln("at ",view.at);
+			foreach(v; view.range(.1))
+				writeln(v.x," ",v.y);
+
+			auto tv=total.view.smooth(4);
+
+			auto weighted=post.compress.weight(tv);
+			if(average) weighted=weighted.smooth(avg_interval);
+			writeln("weighted");
+			foreach(v; weighted.range(.1))
+				writeln(v.x," ",v.y*1e4);
+
+		}
 	}
 
-	if(show_total) {
-		auto total=total(data).view.smooth(2);
-		writeln("smooth 2hr");
 
-		for(auto t=total.start; t < total.end; t+=.25)
-			writeln(t," ",total(t));
-	}
-
+/+
 
 	if(mode == Mode.view)
 	foreach(id; post_id) {
@@ -189,13 +288,13 @@ Post pulse(T)(T data)
 if(is(ForeachType!T == Post))
 {
 	// find sum of all post views
-	DateTime at=data.front.at;
+	DateTime at=data.front.begin;
 
 	Post.Stat[DateTime] heap;
 	// sum all post INCREMENTS into assoc.array indexed by time
 	foreach(post; data) {
 		uint last=0;
-		at=min(at, post.at);
+		at=min(at, post.begin);
 		foreach(stat; post.stat) {
 			if(stat.ts !in heap)
 				heap[stat.ts]=Post.Stat(stat.ts);
@@ -205,7 +304,7 @@ if(is(ForeachType!T == Post))
 	}
 
 	// convert the array into Post.Stat[] array
-	auto pulse=Post(0, at);
+	auto pulse=Post(0, DateTime(at.date));
 	foreach(ts; heap.keys.sort)
 		pulse.add(heap[ts]);
 
@@ -324,3 +423,6 @@ auto diff(View a, View b)
 	}
 	return sqrt(s/z);
 }
+
+
+

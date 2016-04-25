@@ -9,14 +9,14 @@ Spline!T spline(T)(const(T[]) x, const(T[]) y)
 {
 	return Spline!T(x,y);
 }
-Delta!T delta(T)(T x, T dx)
+Delta!T kappa(T)(T x, T dx)
 {
-	return Delta!T(x,dx);
+	return Kappa!T(x,dx);
 }
 
 
 
-struct Delta(T)
+struct Kappa(T)
 {
 	private T x, dx;
 
@@ -196,6 +196,17 @@ struct Spline(T)
 		bool empty() const { return x > s.max; }
 		auto front() { return tuple!("x","y")(x, s(x)); }
 		void popFront() { x+=dx; }
+	}
+
+	NodeRange nodes() { return NodeRange(this); }
+	struct NodeRange
+	{
+		private const Spline s;
+		private uint i;
+
+		bool empty() const { return i > s.N; }
+		auto front() { return tuple!("x","a","b","c","d")(s.X[i],s.A[i],s.B[i],s.C[i],s.D[i]); }
+		void popFront() { ++i; }
 	}
 }
 

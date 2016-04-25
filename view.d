@@ -17,6 +17,7 @@ struct View
 
 	auto range(double dt) { return v.D1.range(dt); }
 	auto S(double dt) { return v.range(dt); }
+	auto D(double dt) { return v.D2.range(dt); }
 	
 	View normalize() const
 	{

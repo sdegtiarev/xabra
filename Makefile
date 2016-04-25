@@ -1,7 +1,7 @@
 
 
 
-all: vue p1
+all: vue #p1
 
 
 # vue: vue.d view.d local/getopt.d local/spline.d

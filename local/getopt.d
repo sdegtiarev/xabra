@@ -1,4 +1,5 @@
 module local.getopt;
+import std.array;
 import std.exception;
 
 
@@ -73,12 +74,14 @@ string optionHelp(T)(T list)
 	typeof(Option.tag.length) len=0;
 	foreach(opt; list)
 		len=max(len, key(opt).length+opt.argType.length+1);
-	
+	string pad=format("\n%*s", len+6, " ");
+
 	string help;
 	foreach(opt; list) {
 		string s=key(opt)~(opt.isShort? " ":"")~opt.argType;
-		if(opt.help == "") opt.help="not documented";
-		help~=format("%-*s    - %s\n", len, s, opt.help);
+		//if(opt.help == "") opt.help="not documented";
+		string desc=opt.help.empty? "" : "- "~opt.help.replace("\n", pad);
+		help~=format("%-*s    %s\n", len, s, desc);
 	}
 	return help;
 }
@@ -220,7 +223,8 @@ private void add_option(T...)(ref Option[] tree, Option opt, string tag)
 		opt.tag=v;
 		opt.group=group;
 		opt.help=ref_help;
-		ref_help="same as "~base.tag;
+		//ref_help="same as "~base.tag;
+		ref_help="";
 		enforce(opt.isLong || !opt.isRegex, "short option "~opt.tag~" can't be regex");
 		tree~=opt;
 	}

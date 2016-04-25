@@ -12,11 +12,6 @@ import core.stdc.math;
 import std.stdio;
 
 
-bool byId(const ref Post a, const ref Post b) { return a.id < b.id; }
-bool byAt(const ref Post a, const ref Post b) { return a.at < b.at; }
-bool byStart(const ref Post a, const ref Post b) { return a.start < b.start; }
-bool byEnd(const ref Post a, const ref Post b) { return a.end < b.end; }
-bool byLength(const ref Post a, const ref Post b) { return a.length < b.length; }
 
 
 struct Post
@@ -31,12 +26,22 @@ struct Post
 		uint view, mark, comm;
 	}
 
+	alias Interval=Tuple!(DateTime,"begin",DateTime,"end");
+
 	@property auto empty() const { return stat.empty; }
 	@property auto length() const { return stat.length; }
 	@property auto begin() const { return stat.front.ts; }
 	@property auto start() const { return (begin-at).total!"minutes"; }
 	@property auto end() const { return (stat.back.ts-at).total!"minutes"; }
-	@property auto max() const { return stat.back.view; }
+	@property auto views() const { return stat.back.view; }
+
+	static bool byId(const ref Post a, const ref Post b) { return a.id < b.id; }
+	static bool byAt(const ref Post a, const ref Post b) { return a.at < b.at; }
+	static bool byStart(const ref Post a, const ref Post b) { return a.start < b.start; }
+	static bool byEnd(const ref Post a, const ref Post b) { return a.end < b.end; }
+	static bool byLength(const ref Post a, const ref Post b) { return a.length < b.length; }
+	static bool byViews(const ref Post a, const ref Post b) { return a.views < b.views; }
+
 
 	void add(DateTime t, uint v, uint m, uint c)
 	{
@@ -69,6 +74,15 @@ struct Post
 		return Post(id,to.at,stat);
 	}
 
+	Post slice(T)(T interval)
+	if(is(T == Interval))
+	{
+		size_t from, to;
+		for(from=0; from < stat.length && stat[from+1].ts < interval[0]; ++from) {}
+		for(to=stat.length; to > 0 && stat[to-1].ts > interval[1]; --to) {}
+		return Post(id, stat[from].ts, stat[from..to]);
+	}
+
 	View view() {
 		double[] x,y;
 		foreach(s; stat) {
@@ -77,7 +91,19 @@ struct Post
 		}
 		return View(at, spline(x,y));
 	}
+
+	View weight(const ref View w) {
+		auto v0=this.view;
+		double[]  x,y;
+		foreach(n; v0.v.D1.nodes) {
+			x~=n.x;
+			y~=n.a/w(n.x);
+		}
+		return View(at, spline(x,y).S);
+	}
 }
+
+
 
 Post[uint] parse(File fd)
 {
@@ -104,7 +130,7 @@ Post[uint] parse(File fd)
 
 
 
-auto parse(char[] line)
+private auto parse(char[] line)
 {
 	auto t=line.split;
 	enforce(t.length >= 6);
@@ -118,3 +144,16 @@ auto parse(char[] line)
 	);
 }
 
+
+
+Post.Interval interval(T)(T data)
+if(is(ForeachType!T == Post))
+{
+	DateTime begin=data.front.begin;
+	DateTime end=data.front.begin+dur!"minutes"(data.front.end);
+	foreach(post; data) {
+		begin=min(begin, post.at);
+		end=max(end, post.begin+dur!"minutes"(post.end));
+	}
+	return Post.Interval(begin,end);
+}
