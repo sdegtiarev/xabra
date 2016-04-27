@@ -95,10 +95,17 @@ struct Post
 	View weight(const ref View w) {
 		auto v0=this.view;
 		double[]  x,y;
+		double scale=0;
+		uint cnt=0;
 		foreach(n; v0.v.D1.nodes) {
 			x~=n.x;
-			y~=n.a/w(n.x);
+			auto wt=w(n.x);
+			y~=n.a/wt;
+			scale+=wt;
+			++cnt;
 		}
+		scale/=cnt;
+		foreach(ref v; y) v*=scale;
 		return View(at, spline(x,y).S);
 	}
 }

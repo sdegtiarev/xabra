@@ -202,6 +202,7 @@ double FP=0;
 		foreach(post; data) {
 			auto view=post.compress.view;
 			if(average) view=view.smooth(avg_interval);
+			if(normalize) view=view.normalize;
 			writeln("at ",view.at);
 			foreach(v; view.range(.1))
 				writeln(v.x," ",v.y);
@@ -210,9 +211,11 @@ double FP=0;
 
 			auto weighted=post.compress.weight(tv);
 			if(average) weighted=weighted.smooth(avg_interval);
+			if(normalize) weighted=weighted.normalize;
+			double scale=normalize? 1 : 1e4;
 			writeln("weighted");
 			foreach(v; weighted.range(.1))
-				writeln(v.x," ",v.y*1e4);
+				writeln(v.x," ",v.y);
 
 		}
 	}
