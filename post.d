@@ -8,6 +8,7 @@ import std.typecons;
 import std.exception;;
 import local.spline;
 import view;
+import lview;
 import core.stdc.math;
 import std.stdio;
 
@@ -90,6 +91,30 @@ struct Post
 			y~=s.view;
 		}
 		return View(at, spline(x,y));
+	}
+
+	LView lview(D)(D dt)
+	{
+		//alias sample=lview.Stat;
+		auto r=new LView();
+
+		DateTime t=at;
+		DateTime t0=at;
+		float v0=0;
+		foreach(data; stat) {
+			double h=(data.ts-t0).total!"seconds";
+			double dv=(data.view-v0)*3600./h;
+			while(t <= data.ts) {
+				double tau=(t-t0).total!"seconds"/h;
+				double v=v0+(data.view-v0)*tau;
+				auto s=LStat(t,dv);
+				r.insert(s);
+				t+=dt;
+			}
+			t0=data.ts;
+			v0=data.view;
+		}
+		return r;
 	}
 
 	View weight(const ref View w) {

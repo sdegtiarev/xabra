@@ -207,7 +207,7 @@ static if(0) {
 			foreach(v; view.range(.1))
 				if(v.y < 0) { writeln(post.id); break;}
 		}
-} else {
+} else static if(0) {
 // good code, displays weighted vs unveighted views
 		foreach(post; data) {
 			auto view=post.compress.view;
@@ -225,6 +225,13 @@ static if(0) {
 			foreach(v; weighted.range(.1))
 				writeln(v.x," ",v.y);
 
+		}
+} else {
+		foreach(post; data) {
+			auto lv=post.compress.lview(dur!"minutes"(10));
+			auto t0=lv.front.ts;
+			foreach(stat; lv)
+				writeln((stat.ts-t0).total!"minutes"/60.," ",stat.val);
 		}
 }
 
