@@ -20,7 +20,7 @@ void main(string[] arg)
 {
 try {
 	enum Field { id, length, at, start, duration, views };
-	enum Mode { none, total, list, view, sum, raw };
+	enum Mode { none, total, list, view, sum, raw, dev };
 
 	int mid=0, cid=0, cm=0, raw, position;
 	bool log_scale, weighted;
@@ -44,6 +44,7 @@ double FP=0;
 		, "-v|--view", "display selected posts views", delegate { mode=Mode.view; }
 		, "-s|--sum", "sum selected posts views", delegate { mode=Mode.sum; }
 		, "-r|--raw", "raw post data", delegate { mode=Mode.raw; }
+		, "-d|--dev", "under development", delegate { mode=Mode.dev; }
 		, "-S|--smooth", "average data on interval", delegate(double dt) { average=true; avg_interval=dt; }
 		, "-N|--normalize", "normalize data", &normalize
 		, "-W|--weight", "weight data", &weight
@@ -113,6 +114,7 @@ double FP=0;
 		auto view=total.view;
 		if(average) view=view.smooth(avg_interval);
 		if(normalize) view=view.normalize;
+		writeln("at ", total.at," to ",total.at+dur!"hours"(174));
 		foreach(v; view.range(.1))
 			writeln(v.x," ", v.y);
 	
@@ -196,9 +198,17 @@ double FP=0;
 		foreach(v; wgt.range(.1))
 			writeln(v.x," ",v.y);
 
+	} else if(mode == Mode.dev) {
+		auto tv=total.view.smooth(4);
 
-
-	} else if(mode == Mode.raw) {
+static if(0) {
+		foreach(post; data) {
+			auto view=post.compress.weight(tv);
+			foreach(v; view.range(.1))
+				if(v.y < 0) { writeln(post.id); break;}
+		}
+} else {
+// good code, displays weighted vs unveighted views
 		foreach(post; data) {
 			auto view=post.compress.view;
 			if(average) view=view.smooth(avg_interval);
@@ -206,8 +216,6 @@ double FP=0;
 			writeln("at ",view.at);
 			foreach(v; view.range(.1))
 				writeln(v.x," ",v.y);
-
-			auto tv=total.view.smooth(4);
 
 			auto weighted=post.compress.weight(tv);
 			if(average) weighted=weighted.smooth(avg_interval);
@@ -217,6 +225,14 @@ double FP=0;
 			foreach(v; weighted.range(.1))
 				writeln(v.x," ",v.y);
 
+		}
+}
+
+	} else if(mode == Mode.raw) {
+		foreach(post; data) {
+			writeln("post ",post.id);	
+			foreach(v; post.compress.range)
+				writeln(v[0]/60.," ",v[1]);
 		}
 	}
 
