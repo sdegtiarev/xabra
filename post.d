@@ -68,6 +68,8 @@ struct Post
 				r.add(s);
 			}
 		}
+		if(stat.back.ts != r.stat.back.ts)
+			r.add(stat.back);
 		return r;
 	}
 
@@ -101,15 +103,16 @@ struct Post
 		DateTime t=at;
 		DateTime t0=at;
 		float v0=0;
+		r.insert(LStat(t0,v0));
 		foreach(data; stat) {
-			double h=(data.ts-t0).total!"seconds";
-			double dv=(data.view-v0)*3600./h;
-			while(t <= data.ts) {
-				double tau=(t-t0).total!"seconds"/h;
-				double v=v0+(data.view-v0)*tau;
-				auto s=LStat(t,dv);
-				r.insert(s);
-				t+=dt;
+			if(data.ts > t0) {
+				double h=(data.ts-t0).total!"seconds";
+				double dv=(data.view-v0)*3600./h;
+				while(t <= data.ts) {
+					double tau=(t-t0).total!"seconds"/h;
+					r.insert(LStat(t,dv));
+					t+=dt;
+				}
 			}
 			t0=data.ts;
 			v0=data.view;

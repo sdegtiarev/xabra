@@ -227,12 +227,14 @@ static if(0) {
 
 		}
 } else {
-		foreach(post; data) {
-			auto lv=post.compress.lview(dur!"minutes"(10));
-			auto t0=lv.front.ts;
-			foreach(stat; lv)
-				writeln((stat.ts-t0).total!"minutes"/60.," ",stat.val);
-		}
+		auto view=total.compress.lview(dur!"minutes"(10));
+		writeln("at ", total.at);
+		foreach(v; view)
+			//writeln(v.ts," ", v.val);
+			writeln((v.ts-total.at).total!"minutes"/60.," ", v.val);
+		writeln("smooth");
+		foreach(v; lview.lsmooth!50(view))
+			writeln((v.ts-total.at).total!"minutes"/60.," ", v.val);
 }
 
 	} else if(mode == Mode.raw) {
