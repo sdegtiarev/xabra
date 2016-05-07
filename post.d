@@ -83,12 +83,13 @@ struct Post
 		return Post(id, stat[from].ts, stat[from..to]);
 	}
 
-	View view(D)(D dt, DateTime t)
+	View view(D)(D dt, DateTime t0)
 	{
 		auto r=new View;
 
-		while(t < at) t+=dt;
-		DateTime t0=at;
+		while(t0 <= at) t0+=dt;
+		t0-=dt;
+		DateTime t=t0;
 		float v0=0;
 		foreach(data; this.compress.stat) {
 			if(data.ts > t0) {
@@ -98,8 +99,6 @@ struct Post
 					r.add(t,dv);
 					t+=dt;
 				}
-			} else {
-				r.add(t, 0);
 			}
 			t0=data.ts;
 			v0=data.view;

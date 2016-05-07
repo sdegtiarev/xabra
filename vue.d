@@ -132,17 +132,39 @@ try {
 		}
 	
 	} else if(mode == Mode.view) {
-		auto tv=total.view(dT,total.at).smooth(average).normalize;
+		auto tv=total.view(dT,total.at).smooth(50).normalize;
 		foreach(post; data) {
 			View view=post.view(dT,total.at).smooth(average);
 			if(weight) view=view.weight(tv);
 			if(normalize) view=view.normalize;
 			writeln("at ",post.at," - ",view.start.timeOfDay);
-			foreach(v; view.range)
+			foreach(v; view.range(total.at))
 				writeln(v.time," ", v.value);
 		}
 
 	} else if(mode == Mode.sum) {
+		auto tv=total.view(dT,total.at).smooth(50).normalize;
+		float[Duration] z;
+		foreach(post; data) {
+			View view=post.view(dT,total.at);
+			if(weight) view=view.weight(tv);
+			if(normalize) view=view.normalize;
+			auto t0=view.start;
+			foreach(v; view.range) {
+				auto t=v.ts-t0;
+				if(t !in z) z[t]=0;
+				z[t]+=v.value;
+			}
+		}
+		auto s=new View;
+		foreach(v; z.byKeyValue)
+			s.add(total.at+v.key, v.value);
+		s=s.smooth(average);
+		writeln(" ");
+		foreach(v; s.range)
+			writeln(v.time," ", v.value);
+
+
 /*
 TO BE REFACTORED
 		immutable double dt=.3;
