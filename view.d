@@ -1,73 +1,83 @@
 module view;
 import std.datetime;
-import local.spline;
+import std.container.rbtree;
+import std.typecons;
+import std.algorithm;
+import std.range;
 import std.stdio;
 
-struct View
+
+struct Stat
 {
-	DateTime at;
-	Spline!double v;
+	DateTime ts;
+	float val;
+}
 
-	this(DateTime at, Spline!double sp) { this.at=at; this.v=sp; }
+alias View=RedBlackTree!(Stat, "a.ts < b.ts");
 
-	@property double start() const { return v.min; }
-	@property double end()   const { return v.max; }
-	double opCall(double t)   const { return v.D1(t); }
-	double value(double t)   const { return v(t); }
+View add(View view, DateTime ts, float val)
+{
+	view.insert(Stat(ts,val));
+	return view;
+}
 
-	auto range(double dt) { return v.D1.range(dt); }
-	auto S(double dt) { return v.range(dt); }
-	auto D(double dt) { return v.D2.range(dt); }
-	
-	View normalize() const
-	{
-		auto scale=v(end);
-		return View(at, v/scale);
+View smooth(View view,uint N)
+{
+	if(N == 0) return view;
+	auto s=view[].array;
+	auto d=view[].array;
+	d[0]=s[0];
+	d[1]=Stat(s[1].ts, (s[0].val+s[1].val+s[2].val)/3);
+	foreach(i; 2..s.length-2)
+		d[i]=Stat(s[i].ts, (s[i-2].val+s[i-1].val+s[i].val+s[i+1].val+s[i+2].val)/5);
+	d[$-2]=Stat(s[$-2].ts, (s[$-3].val+s[$-2].val+s[$-1].val)/3);
+	d[$-1]=s[$-1];
+	return new View(d).smooth(N-1);
+}
+
+DateTime start(View view) { return view.front.ts; }
+DateTime end(View view) { return view.back.ts; }
+
+
+View normalize(View view)
+{
+	auto sum=view[].map!(a => a.val).sum/view.length;
+	View r=new View;
+	foreach(v; view) r.add(v.ts, v.val/sum);
+	return r;
+}
+
+View weight(View view, View base)
+{
+	View r=new View;
+	float[DateTime] w;
+	foreach(v; base) w[v.ts]=v.val;
+	foreach(v; view) r.add(v.ts, v.val/w[v.ts]);
+	return r;
+}
+
+
+auto range(View view)
+{
+	return ViewRange(view.front.ts, view[]);
+}
+
+auto range(View view, DateTime at)
+{
+	return ViewRange(at, view[]);
+}
+
+struct ViewRange
+{
+	DateTime t0;
+	typeof(View.opSlice()) range;
+
+	@property bool empty() const { return range.empty(); }
+	void popFront() { range.popFront(); }
+	auto front() {
+		float t=(range.front.ts-t0).total!"seconds"/3600.;
+		float v=range.front.val;
+		return tuple!("time","value","ts")(t,v,range.front.ts);
 	}
-
-	View smooth(double dt) {
-		double[] x,y;
-		x~=start; y~=v(start);
-		for(auto t=start+dt/2; t < end; t+=dt) { x~=t; y~=v(t); }
-		x~=end; y~=v(end);
-		return View(at, spline(x,y));
-	}
-}
-
-
-
-
-
-View smooth(View v, double dx)
-{
-	double[] x,y;
-	x~=v.start;
-	y~=v.v(v.start);
-	for(double t=v.start+dx/2; t <= (v.end-dx/2); t+=dx) {
-		x~=t;
-		y~=(v.value(t-dx/2)+v.value(t)+v.value(t+dx/2))/3;
-	}
-	x~=v.end;
-	y~=v.v(v.end);
-	return View(v.at,spline(x,y));
-}
-
-View slice(View v, double x1, double x2)
-{
-	return View(v.at, v.v.slice(x1, x2, .5));
-}
-
-View slice(View src, View target)
-{
-	return View(
-		  target.at
-		, src.v.slice(target.start, target.end, .5)
-			.shift(hr(target.at, src.at))
-		);
-}
-
-double hr(DateTime start, DateTime end)
-{
-	return (end-start).total!"minutes"/60.;
 }
 

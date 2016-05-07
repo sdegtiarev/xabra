@@ -6,10 +6,7 @@ import std.datetime;
 import std.traits;
 import std.typecons;
 import std.exception;;
-import local.spline;
 import view;
-import lview;
-import core.stdc.math;
 import std.stdio;
 
 
@@ -86,55 +83,28 @@ struct Post
 		return Post(id, stat[from].ts, stat[from..to]);
 	}
 
-	View view() {
-		double[] x,y;
-		foreach(s; stat) {
-			x~=(s.ts-at).total!"minutes"/60.;
-			y~=s.view;
-		}
-		return View(at, spline(x,y));
-	}
-
-	LView lview(D)(D dt)
+	View view(D)(D dt, DateTime t)
 	{
-		//alias sample=lview.Stat;
-		auto r=new LView();
+		auto r=new View;
 
-		DateTime t=at;
+		while(t < at) t+=dt;
 		DateTime t0=at;
 		float v0=0;
-		r.insert(LStat(t0,v0));
-		foreach(data; stat) {
+		foreach(data; this.compress.stat) {
 			if(data.ts > t0) {
-				double h=(data.ts-t0).total!"seconds";
-				double dv=(data.view-v0)*3600./h;
+				double h=(data.ts-t0).total!"seconds"/3600.;
+				double dv=(data.view-v0)/h;
 				while(t <= data.ts) {
-					double tau=(t-t0).total!"seconds"/h;
-					r.insert(LStat(t,dv));
+					r.add(t,dv);
 					t+=dt;
 				}
+			} else {
+				r.add(t, 0);
 			}
 			t0=data.ts;
 			v0=data.view;
 		}
 		return r;
-	}
-
-	View weight(const ref View w) {
-		auto v0=this.view;
-		double[]  x,y;
-		double scale=0;
-		uint cnt=0;
-		foreach(n; v0.v.D1.nodes) {
-			x~=n.x;
-			auto wt=w(n.x);
-			y~=n.a/wt;
-			scale+=wt;
-			++cnt;
-		}
-		scale/=cnt;
-		foreach(ref v; y) v*=scale;
-		return View(at, spline(x,y).S);
 	}
 }
 
