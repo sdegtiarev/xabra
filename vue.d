@@ -9,11 +9,14 @@ import std.traits;
 import std.typecons;
 import std.math;
 import std.exception;
+import std.format;
 import local.getopt;
 import post;
 import view;
 
 immutable auto dT=dur!"minutes"(10);
+uint average=0;
+bool weighted;
 
 void main(string[] arg)
 {
@@ -22,14 +25,12 @@ try {
 	enum Mode { none, total, list, view, sum, raw, dev };
 
 	int mid=0, cid=0, cm=0, raw, position;
-	bool log_scale, weighted;
 
 	int[] post_id;
 	Mode mode;
 	Field[] fmt;
 	Field sort_fn=Field.id;
-	bool force_all, invert, normalize, weight, help;
-	uint average=0;
+	bool force_all, invert, normalize, help;
 	Option[] opt;
 	getopt(opt, arg //,noThrow.yes
 		, "-p|--post", "post id's to analyze. If not given, use entire file\nexcept truncated posts", &post_id
@@ -45,7 +46,7 @@ try {
 		, "-d|--dev", "under development", delegate { mode=Mode.dev; }
 		, "-S|--smooth", "average data", &average
 		, "-N|--normalize", "normalize data", &normalize
-		, "-W|--weight", "weight data", &weight
+		, "-W|--weight", "weight data", &weighted
 
 		, "-h|-?|--help", "print this help", &help, true
 	);
@@ -93,7 +94,8 @@ try {
 	enforce(data.length, "no valid posts");
 
 
-	Post total=pulse(all.values).slice(data.values.interval);
+	//Post total=pulse(all.values).slice(data.values.interval);
+	Post total=pulse(all.values);
 
 
 
@@ -135,19 +137,22 @@ try {
 		auto tv=total.view(dT,total.at).smooth(50).normalize;
 		foreach(post; data) {
 			View view=post.view(dT,total.at).smooth(average);
-			if(weight) view=view.weight(tv);
+			if(weighted) view=view.weight(tv);
 			if(normalize) view=view.normalize;
-			writeln("at ",post.at," - ",view.start.timeOfDay);
-			foreach(v; view.range(total.at))
+			writeln("at ",post.at);
+			//foreach(v; view.range(total.at))
+			foreach(v; view.range)
 				writeln(v.time," ", v.value);
 		}
+
+
 
 	} else if(mode == Mode.sum) {
 		auto tv=total.view(dT,total.at).smooth(50).normalize;
 		float[Duration] z;
 		foreach(post; data) {
 			View view=post.view(dT,total.at);
-			if(weight) view=view.weight(tv);
+			if(weighted) view=view.weight(tv);
 			if(normalize) view=view.normalize;
 			auto t0=view.start;
 			foreach(v; view.range) {
@@ -159,148 +164,50 @@ try {
 		auto s=new View;
 		foreach(v; z.byKeyValue)
 			s.add(total.at+v.key, v.value);
-		s=s.smooth(average);
+		s=s.smooth(average).normalize;
 		writeln(" ");
 		foreach(v; s.range)
 			writeln(v.time," ", v.value);
+			//if(v.value > .1) writeln(v.time," ", log(v.value));
 
 
-/*
-TO BE REFACTORED
-		immutable double dt=.3;
-		double[] x,y,w;
-		uint n[];
-		n.length=x.length=y.length=w.length=cast(uint) (200/dt);
-		y[]=w[]=0;
-		foreach(i; 0..x.length) x[i]=i*dt;
-		auto tv=total.view.smooth(4);
-		
-		foreach(post; data) {
-			auto view=post.compress.view;
-			if(normalize) view=view.normalize;
-			foreach(v; view.range) {
-				uint i=cast(uint) (v.time/dt);
-				assert(i >= 0, "negative index");
-				assert(i < n.length, "huge index");
-				++n[i];
-				y[i]+=v.value;
-				w[i]+=v.value/(tv(v.ts));
-			}
-		}
-		ulong end=n.length;
-		while(n[end-1] == 0) --end;
-		n.length=x.length=y.length=w.length=end;
-		foreach(i; 0..n.length) {
-			y[i]/=n[i];
-			w[i]/=n[i];
-		}
 
-		auto sum=View(total.at, spline(x,y).S).normalize;
-		writeln("summary");
-		foreach(v; sum.range(.1))
-			writeln(v.x," ",v.y);
-		auto wgt=View(total.at, spline(x,w).S).normalize;
-		writeln("weighted");
-		foreach(v; wgt.range(.1))
-			writeln(v.x," ",v.y);
-*/
+
 	} else if(mode == Mode.dev) {
-		auto tv=total.view(dT,total.at).smooth(average);
-
-static if(0) {
+		auto tv=total.view(dT,total.at).smooth(50).normalize;
 		foreach(post; data) {
-			auto view=post.compress.weight(tv);
-			foreach(v; view.range(.1))
-				if(v.y < 0) { writeln(post.id); break;}
-		}
-} else static if(0) {
-// good code, displays weighted vs unveighted views
-		foreach(post; data) {
-			auto view=post.compress.view;
-			if(average) view=view.smooth(avg_interval);
-			if(normalize) view=view.normalize;
-			writeln("at ",view.at);
-			foreach(v; view.range(.1))
-				writeln(v.x," ",v.y);
+			View base=post.view(dT, total.at).smooth(average);
+			if(weighted) base=base.weight(tv);
+			foreach(sample; data) {
+				if(sample.id >= post.id)
+					continue;
+				View view=sample.view(dT,total.at).smooth(average);
+				if(weighted) view=view.weight(tv);
+				auto f=fit(0, base, view);
+				writeln(sample.id," ",post.id," ",f);
 
-			auto weighted=post.compress.weight(tv);
-			if(average) weighted=weighted.smooth(avg_interval);
-			if(normalize) weighted=weighted.normalize;
-			double scale=normalize? 1 : 1e4;
-			writeln("weighted");
-			foreach(v; weighted.range(.1))
-				writeln(v.x," ",v.y);
-
+			}
+			//foreach(sample; all) {
+			//	if(sample.start > 30 || sample.end < 1440)
+			//		continue;
+			//	View view=sample.view(dT,total.at).smooth(average);
+			//	if(weighted) view=view.weight(tv);
+			//	fit(sample.id, base, view);
+			//}
 		}
-} else {
-		foreach(v; tv.range)
-			writeln(v.time," ", v.value);
-}
 
 	} else if(mode == Mode.raw) {
 		foreach(post; data) {
 			writeln("post ",post.id);	
 			foreach(v; post.range)
 				writeln(v[0]/60.," ",v[1]);
+			writeln("");	
+			foreach(v; post.compress.range)
+				writeln(v[0]/60.," ",v[1]);
 		}
 	}
 
 
-/+
-
-	if(mode == Mode.view)
-	foreach(id; post_id) {
-		auto total=total(data).view.smooth(2);
-		auto view=data[id].view;
-		auto t0=hr(total.at,view.at);
-
-		writeln("post ", id);
-		for(auto t=view.start; t < view.end && (t+t0) < total.end; t+=.1)
-			writeln(t," ",view(t)/total(t+t0));
-	}
-
-	if(mode == Mode.exp)
-	foreach(id; post_id) {
-		auto total=total(data).norm.smooth(1);
-		auto view=data[id].norm;
-		//auto view=data[id].view;
-		auto t0=hr(total.at,view.at);
-		auto smot=view.smooth(1);
-
-		writeln("post ",id," ",data[id].at);
-		for(auto t=view.start; t <= view.end; t+=.1)
-			writeln(t+data[id].at.hour," ",view(t)," ",smot(t));
-
-		writeln("weighted");
-		for(auto t=view.start; t <= view.end; t+=.1)
-			writeln(t+data[id].at.hour," ",smot(t)/total(t+t0)/100);
-
-	}
-
-
-	if(mode == Mode.all) {
-		auto av=normalize? average(data, weighted).norm : average(data, weighted);
-		for(float t=av.start; t < av.end; t+=.1)
-			writeln(t," ",av(t));
-	}
-
-	if(mode == Mode.fit) {
-
-		auto av=normalize? average(data, weighted).norm : average(data, weighted);
-		foreach(id; post_id) {
-			auto view=data[id].view.smooth(1);
-			auto start=max(view.start,av.start);
-			auto end=min(view.end,av.end);
-			auto sc=fit(view, av);
-			view.v*=sc;
-writeln(cast(uint) (diff(view, av)*100)," ",id);
-//writeln("fit ", cast(uint) (diff(view, av)*100),"%");
-//			for(auto t=start; t < end; t+=.1)
-//				writeln(t," ",view(t)," ",av(t));
-		}
-	}
-
-+/
 
 
 
@@ -309,6 +216,36 @@ writeln(cast(uint) (diff(view, av)*100)," ",id);
 }
 }
 
+
+auto fit(int id, View base, View view)
+{
+	double f0=0, f1=0, f2=0;
+	foreach(v; zip(base.range, view.range)) {
+		f0+=v[0].value*v[0].value;
+		f1+=v[0].value*v[1].value;
+		f2+=v[1].value*v[1].value;
+	}
+	auto k=f1/f2;
+	double fit=0;
+	uint n=0;
+	foreach(v; zip(base.range, view.range)) {
+		auto f=v[0].value-k*v[1].value;
+		fit+=f*f;
+		++n;
+	}
+	fit=sqrt(fit/f0);
+	return fit;
+	//writeln(id," ",fit*100);
+
+	//auto f=File(format("tmp/%s",id), "w");
+	//f.writeln("fit ",cast(uint)(fit*100),"%");
+	//foreach(v; base.range)
+	//	f.writeln(v.time," ",v.value);
+	//f.writeln("post ",id);
+	//foreach(v; view.range)
+	//	f.writeln(v.time," ",v.value*k);
+	//f.close();
+}
 
 
 

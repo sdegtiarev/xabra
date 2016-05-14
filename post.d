@@ -87,8 +87,11 @@ struct Post
 	{
 		auto r=new View;
 
+		while(t0 > at) t0-=dt;
+		while(t0 <= at) t0+=dt;
 		while(t0 <= at) t0+=dt;
 		t0-=dt;
+//stderr.writeln("rebase ",at," => ",t0);
 		DateTime t=t0;
 		float v0=0;
 		foreach(data; this.compress.stat) {

@@ -49,6 +49,13 @@ View normalize(View view)
 
 View weight(View view, View base)
 {
+//foreach(v; zip(view[],base[])) writeln("# ",v[0].ts," ",v[1].ts);
+foreach(v; view) {
+	if(Stat(v.ts,0) !in base) {
+		stderr.writeln(v.ts," not in base ",base.front.ts," - ",base.back.ts);
+		assert(0);
+	}
+}
 	View r=new View;
 	float[DateTime] w;
 	foreach(v; base) w[v.ts]=v.val;
