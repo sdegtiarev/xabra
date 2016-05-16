@@ -178,22 +178,18 @@ try {
 		foreach(post; data) {
 			View base=post.view(dT, total.at).smooth(average);
 			if(weighted) base=base.weight(tv);
+			base=base.normalize;
 			foreach(sample; data) {
 				if(sample.id >= post.id)
 					continue;
 				View view=sample.view(dT,total.at).smooth(average);
 				if(weighted) view=view.weight(tv);
-				auto f=fit(0, base, view);
+				view=view.normalize;
+				auto f=fit(base, view);
 				writeln(sample.id," ",post.id," ",f);
+				writeln(post.id," ",sample.id," ",f);
 
 			}
-			//foreach(sample; all) {
-			//	if(sample.start > 30 || sample.end < 1440)
-			//		continue;
-			//	View view=sample.view(dT,total.at).smooth(average);
-			//	if(weighted) view=view.weight(tv);
-			//	fit(sample.id, base, view);
-			//}
 		}
 
 	} else if(mode == Mode.raw) {
@@ -217,7 +213,7 @@ try {
 }
 
 
-auto fit(int id, View base, View view)
+auto fit(View base, View view)
 {
 	double f0=0, f1=0, f2=0;
 	foreach(v; zip(base.range, view.range)) {
@@ -235,16 +231,17 @@ auto fit(int id, View base, View view)
 	}
 	fit=sqrt(fit/f0);
 	return fit;
-	//writeln(id," ",fit*100);
+}
 
-	//auto f=File(format("tmp/%s",id), "w");
-	//f.writeln("fit ",cast(uint)(fit*100),"%");
-	//foreach(v; base.range)
-	//	f.writeln(v.time," ",v.value);
-	//f.writeln("post ",id);
-	//foreach(v; view.range)
-	//	f.writeln(v.time," ",v.value*k);
-	//f.close();
+auto fit0(View base, View view)
+{
+	double f0=0, f1=0;
+	foreach(v; zip(base.range, view.range)) {
+		auto f=v[0].value-v[1].value;
+		f1+=f*f;
+		f0+=v[0].value*v[0].value;
+	}
+	return sqrt(f1/f0);
 }
 
 
