@@ -88,12 +88,10 @@ struct Post
 		auto r=new View;
 
 		while(t0 > at) t0-=dt;
-		while(t0 <= at) t0+=dt;
-		while(t0 <= at) t0+=dt;
-		t0-=dt;
-//stderr.writeln("rebase ",at," => ",t0);
+		while(t0 <= begin) t0+=dt;
+		//t0-=dt;
 		DateTime t=t0;
-		float v0=0;
+		float v0=stat.front.view;
 		foreach(data; this.compress.stat) {
 			if(data.ts > t0) {
 				double h=(data.ts-t0).total!"seconds"/3600.;
