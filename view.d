@@ -4,6 +4,8 @@ import std.container.rbtree;
 import std.typecons;
 import std.algorithm;
 import std.range;
+import std.math;
+import std.traits;
 import std.stdio;
 
 
@@ -64,6 +66,26 @@ foreach(v; view) {
 }
 
 
+View summarize(DATA)(DATA data, DateTime at)
+if(is(ForeachType!DATA == View))
+{
+	float[Duration] z;
+	foreach(view; data) {
+		auto t0=view.start;
+		foreach(v; view.range) {
+			auto t=v.ts-t0;
+			if(t !in z) z[t]=0;
+			z[t]+=v.value;
+		}
+	}
+	auto s=new View;
+	foreach(v; z.byKeyValue)
+		s.add(at+v.key, v.value);
+	return s.normalize;
+
+}
+
+
 auto range(View view)
 {
 	return ViewRange(view.front.ts, view[]);
@@ -88,3 +110,22 @@ struct ViewRange
 	}
 }
 
+auto fit(View base, View view)
+{
+	double f0=0, f1=0, f2=0;
+	foreach(v; zip(base.range, view.range)) {
+		f0+=v[0].value*v[0].value;
+		f1+=v[0].value*v[1].value;
+		f2+=v[1].value*v[1].value;
+	}
+	auto k=f1/f2;
+	double fit=0;
+	uint n=0;
+	foreach(v; zip(base.range, view.range)) {
+		auto f=v[0].value-k*v[1].value;
+		fit+=f*f;
+		++n;
+	}
+	fit=sqrt(fit/f0);
+	return fit;
+}

@@ -162,3 +162,38 @@ if(is(ForeachType!T == Post))
 	}
 	return Post.Interval(begin,end);
 }
+
+
+
+Post sum(T)(T data)
+if(is(ForeachType!T == Post))
+{
+	// find sum of all post views
+	DateTime at=data.front.begin;
+
+	Post.Stat[DateTime] heap;
+	// sum all post INCREMENTS into assoc.array indexed by time
+	foreach(post; data) {
+		uint last=0;
+		at=min(at, post.begin);
+		foreach(stat; post.stat) {
+			if(stat.ts !in heap)
+				heap[stat.ts]=Post.Stat(stat.ts);
+			heap[stat.ts].view+=stat.view-last;
+			last=stat.view;
+		}
+	}
+
+	// convert the array into Post.Stat[] array
+	auto pulse=Post(0, DateTime(at.date));
+	foreach(ts; heap.keys.sort)
+		pulse.add(heap[ts]);
+
+	// convert view increments back to integral views
+	uint last=0;
+	foreach(ref stat; pulse.stat) {
+		stat.view+=last;
+		last=stat.view;
+	}
+	return pulse.compress;
+}
