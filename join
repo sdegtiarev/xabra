@@ -1,8 +1,18 @@
 #!/usr/bin/env perl
 
+while($ARGV[0]=~/^-/) {
+	my $opt=shift;
+	last if($opt eq '--');
+	
+	if($opt=~s/^-u//) { $un=1; unshift(@ARGV,"-$opt") if($opt ne ""); }
+	
+	else { die "$opt: invalid option"; }
+}
+
 
 while(<>) {
 	s/\s*$//;
-	s/ /,/g;
+	if($un) { s/,/ /g; }
+	else    { s/ /,/g; }
 	print "$_\n";
 }

@@ -32,6 +32,8 @@ struct Post
 	@property auto start() const { return (begin-at).total!"minutes"; }
 	@property auto end() const { return (stat.back.ts-at).total!"minutes"; }
 	@property auto views() const { return stat.back.view; }
+	@property auto marks() const { return stat.back.mark; }
+	@property auto comms() const { return stat.back.comm; }
 
 	static bool byId(const ref Post a, const ref Post b) { return a.id < b.id; }
 	static bool byAt(const ref Post a, const ref Post b) { return a.at < b.at; }
@@ -103,6 +105,59 @@ struct Post
 			}
 			t0=data.ts;
 			v0=data.view;
+		}
+		return r;
+	}
+
+
+	View mark(D)(D dt, DateTime t0)
+	{
+		auto r=new View;
+
+		while(t0 > at) t0-=dt;
+		while(t0 <= begin) t0+=dt;
+		DateTime t=t0;
+		float v0=stat.front.mark;
+		foreach(data; this.compress.stat) {
+			if(data.ts > t0) {
+				double h=(data.ts-t0).total!"seconds"/3600.;
+				double dv=(data.mark-v0)/h;
+				while(t <= data.ts) {
+					r.add(t,dv);
+					t+=dt;
+				}
+			}
+			t0=data.ts;
+			v0=data.mark;
+		}
+		return r;
+	}
+
+	View mark(D)(D dt, Post wt)
+	{
+		auto r=new View;
+
+		DateTime t0=wt.at;
+		while(t0 > at) t0-=dt;
+		while(t0 <= begin) t0+=dt;
+		DateTime t=t0;
+		float[DateTime] w0; foreach(st; wt.stat) w0[st.ts]=st.view;
+
+		float v0=stat.front.mark/w0[stat.front.ts];
+		//float v0=stat.front.mark;
+		foreach(data; this.compress.stat) {
+			if(data.ts > t0) {
+				double h=(data.ts-t0).total!"seconds"/3600.;
+				double dv=(data.mark/w0[data.ts]-v0)/h;
+				//double dv=(data.mark-v0)/h;
+				while(t <= data.ts) {
+					r.add(t,max(dv,0));
+					t+=dt;
+				}
+			}
+			t0=data.ts;
+			v0=data.mark/w0[data.ts];
+			//v0=data.mark;
 		}
 		return r;
 	}

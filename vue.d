@@ -8,6 +8,7 @@ import std.datetime;
 import std.traits;
 import std.typecons;
 import std.math;
+import std.complex;
 import std.exception;
 import std.format;
 import local.getopt;
@@ -21,8 +22,8 @@ bool weighted;
 void main(string[] arg)
 {
 try {
-	enum Field { id, length, at, start, duration, views };
-	enum Mode { none, total, list, view, sum, raw, dev };
+	enum Field { id, length, at, start, duration, views, marks, comms };
+	enum Mode { none, total, list, view, mark, comm, sum, raw, fit, dev };
 
 	int mid=0, cid=0, cm=0, raw, position;
 
@@ -41,9 +42,12 @@ try {
 		, "--format", "list format", &fmt
 		, "--sort", "list sort field", &sort_fn
 		, "-v|--view", "display selected posts views", delegate { mode=Mode.view; }
+		, "-m|--mark", "display selected posts marks", delegate { mode=Mode.mark; }
+		, "-c|--comm", "display selected posts comments", delegate { mode=Mode.comm; }
 		, "-s|--sum", "sum selected posts views", delegate { mode=Mode.sum; }
 		, "-r|--raw", "raw post data", delegate { mode=Mode.raw; }
-		, "-d|--dev", "under development", delegate { mode=Mode.dev; }
+		, "-f|--fit", "view cross fit table", delegate { mode=Mode.fit; }
+		, "-d", "under development", delegate { mode=Mode.dev; }
 		, "-S|--smooth", "average data", &average
 		, "-N|--normalize", "normalize data", &normalize
 		, "-W|--weight", "weight data", &weighted
@@ -128,6 +132,8 @@ try {
 				case Field.duration: write(post.end, " "); break;
 				case Field.length: write(post.length, " "); break;
 				case Field.views: write(post.views, " "); break;
+				case Field.marks: write(post.marks, " "); break;
+				case Field.comms: write(post.comms, " "); break;
 				default: assert(0);
 			}
 			writeln();
@@ -140,8 +146,21 @@ try {
 			if(weighted) view=view.weight(tv);
 			if(normalize) view=view.normalize;
 			writeln("at ",post.at);
-			//foreach(v; view.range(total.at))
 			foreach(v; view.range)
+				writeln(v.time," ", v.value);
+		}
+
+
+	} else if(mode == Mode.mark) {
+		auto tm=total.view(dT,total.at).smooth(50).normalize;
+		foreach(post; data) {
+			View mark=weighted?
+				  post.mark(dT,total).smooth(average)
+				: post.mark(dT,total.at).smooth(average);
+			if(normalize) mark=mark.normalize;
+			writeln("at ",post.at);
+			//foreach(v; view.range(total.at))
+			foreach(v; mark.range)
 				writeln(v.time," ", v.value);
 		}
 
@@ -173,7 +192,7 @@ try {
 
 
 
-	} else if(mode == Mode.dev) {
+	} else if(mode == Mode.fit) {
 		auto tv=total.view(dT,total.at).smooth(50).normalize;
 		foreach(post; data) {
 			View base=post.view(dT, total.at).smooth(average);
@@ -201,6 +220,23 @@ try {
 			foreach(v; post.compress.range)
 				writeln(v[0]/60.," ",v[1]);
 		}
+
+
+	} else if(mode == Mode.dev) {
+		Complex!float[] z;
+		foreach(post; data) {
+			float v=post.views;
+			z~=complex(post.marks/v,post.comms/v)*1000;
+		}
+		for(int i=0; z.length > 5 && i < 100; ++i) {
+			auto z0=middle(z);
+			//writeln(i," ",z0.re," ",z0.im);
+			//writeln(z0.im," ",z0.re);
+			//writeln(i," ",distro(z));
+			writeln(i," ",z.length," ",distro(z)*100);
+			z=exclude(z, z0, .9);
+		}
+			
 	}
 
 
@@ -210,6 +246,38 @@ try {
 } catch(Exception x) {
 	writefln(x.msg);
 }
+}
+
+
+
+auto middle(R)(R[] r)
+{
+	R r0=0;
+	foreach(v; r) r0+=v;
+	return r0/r.length;
+}
+
+auto distro(R)(R[] r)
+{
+	R r0=0;
+	foreach(v; r) r0+=v;
+	r0/=r.length;
+	
+	double r2=0;
+	foreach(v; r) { auto t=abs(v-r0); r2+=t*t; }
+	return sqrt(r2/r.length);
+}
+
+auto exclude(R)(R[] r, R r0, double wgt)
+{
+	double d=0;
+	foreach(v; r) d=max(d, abs(v-r0));
+	d*=wgt;
+	
+	R[] t;
+	foreach(v; r)
+		if(abs(v-r0) < d) t~=v;
+	return t;
 }
 
 
