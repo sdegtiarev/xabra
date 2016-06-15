@@ -7,33 +7,50 @@ import std.conv;
 import std.typecons;
 import std.ascii;
 import std.datetime;
+import std.string;
 
 bool tree=false;
 
 void main(string[] arg)
 {
-	string page=(arg.length > 1)? load(arg[1]) : load(1);
+	foreach(id; arg[1..$]) {
+		string page=load(id);
 
-	auto s=Section(page);
+		auto s=Section(page);
 
-	if(tree) writeln("---------------------------------------------");
-	auto posts=s["inner"]["column-wrapper"]["content_left"]["posts_list"]["posts"];
-	if(posts.empty)
-		writeln("no posts");
-	else
-		foreach(p; posts.children)
-		if(p.name == "post") {
-			writeln(p.name,"(",p.id[5..$],")");
-			auto pb=p["published"];
-			writeln("    ",pb.name,": ",pb.text);
-			auto info=p["infopanel_wrapper"];
-			foreach(y; info.children) {
-				if(y.name == "views-count_post")
-					writeln("    views: ",y.text);
-				else
-					writeln("    ",y.name);
-			}
+		//if(tree) writeln("---------------------------------------------");
+		auto data=s["inner"]["column-wrapper"]["content_left"]["company_post"]["post"]["post__header"]["hubs"];
+		if(data.empty)
+			data=s["inner"]["content_wrapper"]["column-wrapper"]["content_left"]["post_show"]["post"]["post__header"]["hubs"];
+		//foreach(p; data.children)
+		//	writeln("div: ",p.name);
+		auto lines=data.text.split("\n");
+		foreach(line; lines) {
+			auto i1=indexOf(line,">");
+			auto i2=indexOf(line,"</a>");
+			if(i1 >= 0 && i2 >= 0)
+				writeln(line[i1+1..i2]);
 		}
+	}
+	
+
+	//auto posts=s["inner"]["column-wrapper"]["content_left"]["posts_list"]["posts"];
+	//if(posts.empty)
+	//	writeln("no posts");
+	//else
+	//	foreach(p; posts.children)
+	//	if(p.name == "post") {
+	//		writeln(p.name,"(",p.id[5..$],")");
+	//		auto pb=p["published"];
+	//		writeln("    ",pb.name,": ",pb.text);
+	//		auto info=p["infopanel_wrapper"];
+	//		foreach(y; info.children) {
+	//			if(y.name == "views-count_post")
+	//				writeln("    views: ",y.text);
+	//			else
+	//				writeln("    ",y.name);
+	//		}
+	//	}
 }
 
 
@@ -53,6 +70,7 @@ static string ident;
 
 	this(string page) {
 		auto r=matchFirst(page, begin);
+		if(!r) return;
 		enforce(r, "no section found");
 		parse(r.post);
 	}
@@ -118,19 +136,11 @@ if(tree) writeln(ident, "} //",this.name);
 
 
 
-string load(int page)
+string load(string id)
 {
-	auto r=executeShell("wget -qO- https://habrahabr.ru/top/page"~to!string(page)~"/");
-	enforce(!r.status, "page load error");
+	auto r=executeShell("wget -qO- https://habrahabr.ru/post/"~id~"/");
+	//enforce(!r.status, "page load error");
+	if(r.status) return "";
 	return r.output;
 }
 
-string load(string file)
-{
-	string page;
-	auto fd=File(file, "r");
-	scope(exit) fd.close;
-	foreach(line; fd.byLine(KeepTerminator.yes))
-		page~=line;
-	return page;
-}

@@ -73,6 +73,7 @@ try {
 		fd.open(arg[1], "r");
 
 	Post[uint] data, all=parse(fd);
+	fd.close;
 	if(post_id.empty) {
 		data=all.dup;
 	} else {
@@ -223,20 +224,25 @@ try {
 
 
 	} else if(mode == Mode.dev) {
-		Complex!float[] z;
+		Complex!float[int] zz;
 		foreach(post; data) {
+			if(post.comms == 0) continue;
 			float v=post.views;
-			z~=complex(post.marks/v,post.comms/v)*1000;
+			zz[post.id]=complex(post.marks,post.comms)*1000;
 		}
-		for(int i=0; z.length > 5 && i < 100; ++i) {
-			auto z0=middle(z);
-			//writeln(i," ",z0.re," ",z0.im);
-			//writeln(z0.im," ",z0.re);
-			//writeln(i," ",distro(z));
-			writeln(i," ",z.length," ",distro(z)*100);
-			z=exclude(z, z0, .9);
-		}
+		
+		//uint[] rad=[50,50,50,40,40,20,20, 20, 20, 16, 10, 10, 10,18];
+		uint[] rad=[50,50,50,50,50,50,40,40,20];
+		foreach(n; rad) {
+			auto z=itr(zz, n);
 			
+			writeln;
+			foreach(v; z.values) writeln(v.re," ",v.im);
+			foreach(id; z.byKey) stderr.write(id," "); stderr.writeln;
+		}
+		writeln;
+		//foreach(v; zz.values) writeln(v.re," ",v.im);
+		//stderr.writeln("left ",zz.length);
 	}
 
 
@@ -246,6 +252,21 @@ try {
 } catch(Exception x) {
 	writefln(x.msg);
 }
+}
+
+
+auto itr(ref Complex!float[int] zz, uint n)
+{
+	auto z=zz;
+	float l0=z.length;
+	Complex!float z0;
+	for(int i=0; z.length >= n && i < 1000; ++i) {
+		z0=middle(z.values);
+		z=exclude(z, z0, .9);
+	}
+	foreach(id; z.keys) zz.remove(id);
+//stderr.writeln("at ",z0,"  ",distro(z.values));
+	return z;
 }
 
 
@@ -268,15 +289,15 @@ auto distro(R)(R[] r)
 	return sqrt(r2/r.length);
 }
 
-auto exclude(R)(R[] r, R r0, double wgt)
+auto exclude(R)(R[int] r, R r0, double wgt)
 {
 	double d=0;
-	foreach(v; r) d=max(d, abs(v-r0));
+	foreach(v; r.values) d=max(d, abs(v-r0));
 	d*=wgt;
 	
-	R[] t;
-	foreach(v; r)
-		if(abs(v-r0) < d) t~=v;
+	R[int] t;
+	foreach(v; r.byKeyValue)
+		if(abs(v.value-r0) < d) t[v.key]=v.value;
 	return t;
 }
 

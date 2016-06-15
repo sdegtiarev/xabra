@@ -5,8 +5,10 @@ import std.algorithm;
 import std.datetime;
 import std.traits;
 import std.range;
+import std.exception;
 import post;
 import view;
+import local.getopt;
 
 
 struct Fit
@@ -25,16 +27,44 @@ immutable auto dT=dur!"minutes"(30);
 
 void main(string[] arg)
 {
+	int[] post_id;
+	bool help;
+	Option[] opt;
+	getopt(opt, arg //,noThrow.yes
+		, "-p|--post", "post id's to analyze. If not given, use entire file\nexcept truncated posts", &post_id
+		, "-h|-?|--help", "print this help", &help, true
+	);
+	if(help) {
+		writeln("clust: clasterize posts by views crossfit");
+		writeln("Syntax: clust [-p <post_list> | -h] [<file>]");
+		writeln("Options:\n",optionHelp(sort!("a.group < b.group || a.group == b.group && a.tag < b.tag")(opt)));
+		return;
+	}
+
+
 	File fd=stdin;
 	if(arg.length > 1) fd.open(arg[1]);
-	Post[uint] raw=parse(fd);
+	Post[uint] posts, raw=parse(fd);
 	fd.close;
 	auto total=sum(raw.values);
 	auto wgt=total.view(dT,total.at).smooth(50).normalize;
+
+	if(post_id.empty) {
+		posts=raw.dup;
+	} else {
+		foreach(id; post_id) {
+			if(id in raw)
+				posts[id]=raw[id];
+			else
+				stderr.writeln("post ",id," ignored");
+		}
+	}
+	enforce(posts.length, "no valid posts");
+
 	View[int] data;
-	foreach(post; raw) {
+	foreach(post; posts) {
 		if(post.start > 30 || post.end < 1440)
-			raw.remove(post.id);
+			posts.remove(post.id);
 		else
 			data[post.id]=post.view(dT, total.at).weight(wgt);
 	}
