@@ -8,6 +8,7 @@ import std.conv;
 import std.typecons;
 import std.ascii;
 import std.datetime;
+import std.string;
 
 
 void main(string[] arg)
@@ -39,6 +40,7 @@ static string ident;
 
 	this(string page) {
 		auto r=matchFirst(page, begin);
+		if(!r) return;
 		enforce(r, "no section found");
 		parse(r.post);
 	}
@@ -104,7 +106,7 @@ if(tree) writeln(ident, "} //",this.name);
 
 
 
-string load(int page)
+string load(string id)
 {
 	auto r=executeShell("wget -qO- https://habrahabr.ru/all/"~to!string(page)~"/");
 	enforce(!r.status, "page load error");
