@@ -1,4 +1,5 @@
 import std.stdio;
+import std.string;
 import std.process;
 import std.array;
 import std.regex;
@@ -8,33 +9,18 @@ import std.typecons;
 import std.ascii;
 import std.datetime;
 
-bool tree=false;
 
 void main(string[] arg)
 {
-	string page=(arg.length > 1)? load(arg[1]) : load(1);
+	string page=(arg.length > 1)? load(arg[1]) : load(stdin);
 
-	auto s=Section(page);
+	while(!page.empty) {
+		auto s=Section(page);
+		page=s.left;
+	}
 
-	if(tree) writeln("---------------------------------------------");
-	auto posts=s["inner"]["column-wrapper"]["content_left"]["posts_list"]["posts"];
-	if(posts.empty)
-		writeln("no posts");
-	else
-		foreach(p; posts.children)
-		if(p.name == "post") {
-			writeln(p.name,"(",p.id[5..$],")");
-			auto pb=p["published"];
-			writeln("    ",pb.name,": ",pb.text);
-			auto info=p["infopanel_wrapper"];
-			foreach(y; info.children) {
-				if(y.name == "views-count_post")
-					writeln("    views: ",y.text);
-				else
-					writeln("    ",y.name);
-			}
-		}
 }
+
 
 
 
@@ -45,10 +31,10 @@ struct Section
 static string ident;
 
 	enum {
-		  begin=r"<div\s+"
-		, end=r"</div>"
+		  begin="<div\\s+"
+		, end="</div>"
 		, any=begin~"|"~end
-		, options=r"(.*?)>"
+		, options="(.*?)>"
 	}
 
 	this(string page) {
@@ -120,7 +106,7 @@ if(tree) writeln(ident, "} //",this.name);
 
 string load(int page)
 {
-	auto r=executeShell("wget -qO- https://habrahabr.ru/top/page"~to!string(page)~"/");
+	auto r=executeShell("wget -qO- https://habrahabr.ru/all/"~to!string(page)~"/");
 	enforce(!r.status, "page load error");
 	return r.output;
 }
@@ -130,6 +116,12 @@ string load(string file)
 	string page;
 	auto fd=File(file, "r");
 	scope(exit) fd.close;
+	return load(fd);
+}
+
+
+string load(File fd)
+{
 	foreach(line; fd.byLine(KeepTerminator.yes))
 		page~=line;
 	return page;

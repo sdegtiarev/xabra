@@ -1,7 +1,6 @@
 
-
-
-all: vue clust
+#all: vue clust
+all: tagstat tagtree
 
 
 # vue: vue.d view.d local/getopt.d local/spline.d
@@ -14,6 +13,12 @@ clust: clust.d post.d view.d
 
 p1: p1.d post.d view.d local/getopt.d  local/spline.d
 	dmd -g p1 post.d view.d local/getopt.d local/spline.d
+
+tagtree: tagtree.d loader.d
+	dmd -g tagtree loader.d
+
+tagstat: tagstat.d loader.d
+	dmd -g tagstat loader.d
 
 
 clean:
