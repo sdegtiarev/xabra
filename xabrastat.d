@@ -41,15 +41,6 @@ void main(string[] arg)
 
 
 
-bool until(Duration interval)
-{
-	if(interval == Duration.zero)
-		return 0;
-	Thread.sleep(interval);
-	return 1;
-}
-
-
 
 bool process(int n, int days)
 {
