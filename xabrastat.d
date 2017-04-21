@@ -35,7 +35,8 @@ void main(string[] arg)
 
 	do {
 		for(int i=1; i <= PAGES && process(i, DAYS); ++i) {}
-	} while(until(dur!"minutes"(repeat)));
+		Thread.sleep(dur!"minutes"(repeat));
+	} while(repeat);
 }
 
 
@@ -89,7 +90,6 @@ bool process(int n, int days)
 		writefln("%-8s %s  %-12s    %-6s    %-4s %4s"
 			, it.opt["id"][5..$]
 			, at(strip(dt.at("post__time_published").text), t0)
-			//, t0
 			, ts
 			, views(info["views-count_post"].text)
 			, st["favorite-wjt__counter js-favs_count"].text
