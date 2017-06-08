@@ -20,6 +20,9 @@ tagtree: tagtree.d loader.d
 tagstat: tagstat.d loader.d
 	dmd -g tagstat loader.d
 
+xabrastat: xabrastat.d tagged.d loader.d
+	dmd -g xabrastat tagged.d loader.d local/getopt.d
+
 
 clean:
 	@ rm -f *.o core

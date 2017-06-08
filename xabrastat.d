@@ -78,13 +78,18 @@ bool process(int n, int days)
 		auto ncm=cm.at("post-comments__link post-comments__link_all").text;
 		if(ncm.empty) ncm="0";
 
-		writefln("%-8s %s  %-12s    %-6s    %-4s %4s"
+		auto vts=info["voting-wjt voting-wjt_infopanel js-voting  "]["voting-wjt__counter voting-wjt__counter_positive  js-mark"];
+		auto vt=section!"span"(vts.text)["voting-wjt__counter-score js-score"].opt["title"].split(";");
+
+
+		writefln("%-8s %s  %-12s    %-6s    %-4s %4s    : %s"
 			, it.opt["id"][5..$]
 			, at(strip(dt.at("post__time_published").text), t0)
 			, ts
 			, views(info["views-count_post"].text)
 			, st["favorite-wjt__counter js-favs_count"].text
 			, ncm
+			, vt
 		);
 	}
 

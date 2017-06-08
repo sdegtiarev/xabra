@@ -73,6 +73,10 @@ struct Section(string TAG)
 	auto opIndex(string key)
 	{
 		auto x=children.filter!(a => "class" in a.opt && a.opt["class"] == key);
+if(x.empty) {
+	foreach(a; children)
+		if("class" in a.opt) writeln("\tcmp \"", a.opt["class"], "\" with \"", key, "\"");
+}
 		enforce(!x.empty, "no class \""~key~"\" found in section");
 		return x.front;
 	}
