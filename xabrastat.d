@@ -35,6 +35,7 @@ void main(string[] arg)
 
 	do {
 		for(int i=1; i <= PAGES && process(i, DAYS); ++i) {}
+		stdout.flush;
 		Thread.sleep(dur!"minutes"(repeat));
 	} while(repeat);
 }
@@ -44,55 +45,38 @@ void main(string[] arg)
 
 bool process(int n, int days)
 {
+	int pgcnt=0;
 	string page=page(n);
 	auto t0=now();
-	auto top=section!"div"(page);
+	auto top=section!"article"(page);
 
+	foreach(x; top.list!"class"("post post_preview")) {
+		//writeln(section!"a"(x.text)["post__title_link"].text);
+		auto id=section!"div"(x.text)[regex("voting-wjt.*")].opt["data-id"];
 
-	auto post=top
-		["layout"]
-		["layout__row layout__row_body"]
-		["layout__cell layout__cell_body"]
-		["column-wrapper column-wrapper_lists js-sticky-wrapper"]
-		["content_left js-content_left"]
-		["posts_list"]
-		["posts shortcuts_items"]
-		;
+		auto ar=section!"span"(x.text);
+		auto t1=at(ar["post__time"].text, t0);
 
-	int pgcnt=0;
-	foreach(it; post.list!"class"("post post_teaser shortcuts_item")) {
-		auto dt=section!"span"(it["post__header"].text);
-		if(strip(dt.at("post__time_published").text).empty)
-			continue;
+		auto vt=votes(ar[regex("voting-wjt__counter.*")].opt["title"]);
 
-		auto ts=(t0-at(strip(dt.at("post__time_published").text), t0)).total!"seconds";
+		auto vs=views(ar["post-stats__views-count"].text);
+		auto cm=ar["post-stats__comments-count"].text; if(cm.empty) cm="0";
+		auto bm=ar["btn_inner"][regex("bookmark__counter.*")].text;
+		
+		auto ts=(t0-t1).total!"seconds";
 		if(ts > days*24*60*60)
 			continue;
 		++pgcnt;
 
-
-		auto info=it["post__footer"]["infopanel_wrapper js-user_"];
-		auto st=section!"span"(info["favorite-wjt favorite"].text);
-
-		auto cm=section!"a"(info["post-comments"].text);
-		auto ncm=cm.at("post-comments__link post-comments__link_all").text;
-		if(ncm.empty) ncm="0";
-
-		auto vts=info["voting-wjt voting-wjt_infopanel js-voting  "]["voting-wjt__counter voting-wjt__counter_positive  js-mark"];
-		auto vt=section!"span"(vts.text)["voting-wjt__counter-score js-score"].opt["title"].split(";");
-
-
-		writefln("%-8s %s  %-12s    %-6s    %-4s %4s    : %s"
-			, it.opt["id"][5..$]
-			, at(strip(dt.at("post__time_published").text), t0)
-			, ts
-			, views(info["views-count_post"].text)
-			, st["favorite-wjt__counter js-favs_count"].text
-			, ncm
-			, vt
+		writef("%-6s %-20s %-20s    %-6s %-4s %-4s %-4s %-4s"
+			, id, t0.toISOExtString, t1.toISOExtString
+			, vs, vt[0], vt[1], cm, bm
 		);
-	}
 
+		write("#", ar["post__type-label"].text, " ");
+		write(section!"a"(x.text).list!"class"(regex("inline-list__item-link hub-link *")).map!(a => a.text));
+		writeln;
+	}
 	return pgcnt > 0;
 }
 
@@ -120,6 +104,11 @@ int views(string s)
 	}
 }
 
+auto votes(string s)
+{
+	auto r=matchFirst(s, ctRegex!"&uarr;([0-9]+).*&darr;([0-9]+)");
+	return [r[1],r[2]];
+}
 
 DateTime now(string zone="Europe/Moscow")
 {

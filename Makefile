@@ -1,28 +1,27 @@
 
-#all: vue clust
-all: tagstat tagtree
+PROG= xabrastat tagtree vue clust 
+DOPT= -I$(HOME)/lib/D
+DLIB= $(HOME)/lib/D/local/*.d 
+all: $(PROG)
 
 
-# vue: vue.d view.d local/getopt.d local/spline.d
-# 	dmd -g vue view.d local/spline.d local/getopt.d
-vue: vue.d post.d view.d local/getopt.d local/spline.d
-	dmd -g vue post.d view.d local/spline.d local/getopt.d
+vue: vue.d post.d view.d 
+	dmd $(DOPT) vue post.d view.d $(DLIB) 
 
-clust: clust.d post.d view.d local/getopt.d
-	dmd -g clust post.d view.d local/getopt.d
-
-p1: p1.d post.d view.d local/getopt.d  local/spline.d
-	dmd -g p1 post.d view.d local/getopt.d local/spline.d
+clust: clust.d post.d view.d 
+	dmd $(DOPT) clust post.d view.d $(DLIB) 
 
 tagtree: tagtree.d loader.d
-	dmd -g tagtree loader.d
+	dmd $(DOPT) tagtree loader.d $(DLIB)
 
-tagstat: tagstat.d loader.d
-	dmd -g tagstat loader.d
+xabrastat: xabrastat.d tagged.d 
+	dmd $(DOPT) xabrastat tagged.d $(DLIB) 
 
-xabrastat: xabrastat.d tagged.d loader.d
-	dmd -g xabrastat tagged.d loader.d local/getopt.d
+v1: v1.d post.d view.d
+	dmd $(DOPT) v1 post.d view.d $(DLIB) 
 
-
+.PHONY: clean deinstall
 clean:
 	@ rm -f *.o core
+deinstall:
+	@ rm -f $(PROG)
