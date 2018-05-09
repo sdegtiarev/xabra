@@ -6,6 +6,7 @@ import std.datetime;
 import std.traits;
 import std.typecons;
 import std.exception;;
+import std.regex;;
 import view;
 import std.stdio;
 
@@ -16,12 +17,14 @@ struct Post
 {
 	uint id;
 	DateTime at;
+	string type;
+	string[] hub;
 	Stat[] stat;
 
 	struct Stat
 	{
 		DateTime ts;
-		uint view, mark, comm;
+		uint view, plus, minus, mark, comm;
 	}
 
 	alias Interval=Tuple!(DateTime,"begin",DateTime,"end");
@@ -73,7 +76,7 @@ struct Post
 	}
 
 	Post rebase(in Post to) {
-		return Post(id,to.at,stat);
+		return Post(id, to.at, to.type, to.hub.dup, stat);
 	}
 
 	Post slice(T)(T interval)
@@ -181,7 +184,7 @@ Post[uint] parse(File fd)
 		data[p.id].add(p.ts, p.v, p.m, p.c);
 
 	} catch(Exception err) {
-		throw new Exception(("parse error at "~to!string(cnt)~": "~line).idup);
+		throw new Exception((to!string(err.message)~": parse error at "~to!string(cnt)~": "~line).idup);
 	}
 
 	return data;
@@ -192,15 +195,24 @@ Post[uint] parse(File fd)
 
 private auto parse(char[] line)
 {
-	auto t=line.split;
-	enforce(t.length >= 6);
-	return tuple!("id","at","ts","v","m","c") (
-		  to!uint(t[1])
+	auto r=matchFirst(line, ctRegex!"#(\\w*)\\s\\[(.*)\\]");
+	auto type=r[1];
+	auto u=matchAll(r[2], ctRegex!"\"(.*?)\"");
+	string[] hubs;
+	foreach(ref uu; u) hubs~=uu[1].idup;
+	auto t=r.pre.split;
+	writeln(t[0], " ", type, ": ", hubs);
+	enforce(t.length >= 8);
+	//return tuple!("id","at","ts","v","p","n","c","m", "t", "h") (
+	return tuple!("id","at","ts","v","p","n","c","m") (
+		  to!uint(t[0])
+		, DateTime.fromISOExtString(t[1])
 		, DateTime.fromISOExtString(t[2])
-		, DateTime.fromISOExtString(t[0])
 		, to!uint(t[3])
 		, to!uint(t[4])
 		, to!uint(t[5])
+		, to!uint(t[6])
+		, to!uint(t[7])
 	);
 }
 

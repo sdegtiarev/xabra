@@ -78,4 +78,5 @@ void main(string[] arg)
 {
 	string page=(arg.length > 1)? load(arg[1]) : load(stdin);
 	auto tree=tagtree!"div"(page);
+	//auto tree=tagtree!"article"(page);
 }

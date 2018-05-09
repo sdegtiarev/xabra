@@ -70,20 +70,27 @@ struct Section(string TAG)
 	}
 
 
+//	auto opIndex(string key)
+//	{
+//		auto x=children.filter!(a => "class" in a.opt && a.opt["class"] == key);
+//if(x.empty) {
+//	foreach(a; children)
+//		if("class" in a.opt) writeln("\tcmp \"", a.opt["class"], "\" with \"", key, "\"");
+//}
+//		enforce(!x.empty, "no class \""~key~"\" found in section");
+//		return x.front;
+//	}
+
 	auto opIndex(string key)
 	{
 		auto x=children.filter!(a => "class" in a.opt && a.opt["class"] == key);
-if(x.empty) {
-	foreach(a; children)
-		if("class" in a.opt) writeln("\tcmp \"", a.opt["class"], "\" with \"", key, "\"");
-}
-		enforce(!x.empty, "no class \""~key~"\" found in section");
+		if(x.empty) return Section!TAG();
 		return x.front;
 	}
 
-	auto at(string key)
+	auto opIndex(Regex!char key)
 	{
-		auto x=children.filter!(a => "class" in a.opt && a.opt["class"] == key);
+		auto x=children.filter!(a => "class" in a.opt && matchAll(a.opt["class"], key));
 		if(x.empty) return Section!TAG();
 		return x.front;
 	}
@@ -91,6 +98,10 @@ if(x.empty) {
 	auto list(string key)(string val)
 	{
 		return children.filter!(a => key in a.opt && a.opt[key] == val);
+	}
+	auto list(string key)(Regex!char val)
+	{
+		return children.filter!(a => key in a.opt && matchAll(a.opt[key], val));
 	}
 
 	@property string name() const { return ("class" in opt)? opt["class"] : "LAMBDA"; }

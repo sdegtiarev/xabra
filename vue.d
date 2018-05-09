@@ -7,7 +7,7 @@ import std.algorithm;
 import std.datetime;
 import std.traits;
 import std.typecons;
-import std.math;
+static import std.math;
 import std.complex;
 import std.exception;
 import std.format;
@@ -22,8 +22,8 @@ bool weighted;
 void main(string[] arg)
 {
 try {
-	enum Field { id, length, at, start, duration, views, marks, comms };
-	enum Mode { none, total, list, view, mark, comm, sum, raw, fit, dev };
+	enum Field { id, length, at, start, duration, views, marks, comms }
+	enum Mode { none, total, list, view, mark, comm, sum, raw, fit, dev }
 
 	int mid=0, cid=0, cm=0, raw, position;
 
@@ -92,8 +92,11 @@ try {
 	}
 	if(!force_all) {
 		foreach(post; data) {
-			if(post.start > 30 || post.end < 1440)
+			if(post.start > 30 || post.end < 1440) {
+			//if(post.start > 30) {
+				//writeln("post ", post.id, " filtered out: started at ", post.start, ", finished at ", post.end);
 				data.remove(post.id);
+			}
 		}
 	}
 	enforce(data.length, "no valid posts");
@@ -304,6 +307,8 @@ auto exclude(R)(R[int] r, R r0, double wgt)
 
 auto fit(View base, View view)
 {
+static import std.math;
+static import std.complex;
 	double f0=0, f1=0, f2=0;
 	foreach(v; zip(base.range, view.range)) {
 		f0+=v[0].value*v[0].value;
